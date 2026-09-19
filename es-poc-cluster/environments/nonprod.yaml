@@ -1,0 +1,94 @@
+# Non-production (QA / staging) — full security stack, half the data capacity of prod.
+# AD points to the nonprod AD server. Elastic password uses chart-managed secret.
+# Usage: helm template es-poc-cluster . -f environments/nonprod.yaml
+
+clusterName: es-nonprod
+
+sysctl:
+  enabled: true
+
+security:
+  enabled: true
+
+tls:
+  enabled: true
+  secretName: "es-nonprod-tls"
+  issuerName: "es-nonprod-issuer"
+
+# Let the chart create the bootstrap secret (existingSecret left empty).
+# Override with your own secret name if your team manages secrets externally.
+elasticPassword:
+  existingSecret: ""
+  password: "changeme-nonprod"   # rotate before first deployment
+
+master:
+  replicas: 3
+  heapSize: "512m"
+  antiAffinity: "preferred"   # spread across nodes but don't hard-block scheduling
+  bootstrapped: false
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  storage:
+    size: "10Gi"
+
+data:
+  replicas: 3              # half of prod — still enough for multi-shard testing
+  heapSize: "1g"
+  antiAffinity: "preferred"
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+  storage:
+    size: "50Gi"
+
+ingest:
+  replicas: 2
+  heapSize: "512m"
+  antiAffinity: "preferred"
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+probes:
+  liveness:
+    initialDelaySeconds: 90
+    periodSeconds: 20
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readiness:
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+pdb:
+  master:
+    enabled: true
+    minAvailable: 2
+  data:
+    enabled: true
+    minAvailable: 1
+
+ad:
+  enabled: true
+  existingSecret: "es-nonprod-ad-secret"   # K8s secret must exist before helm install
+  domainName: "your-corp.com"
+  url: "ldaps://ad-nonprod.your-corp.com:636"
+  bindDn: "CN=es-svc,OU=ServiceAccounts,DC=your-corp,DC=com"
+  userSearchBaseDn: "OU=Users,DC=your-corp,DC=com"
+  groupSearchBaseDn: "OU=Groups,DC=your-corp,DC=com"
+  adminGroupDn: "CN=ES-Admins,OU=Groups,DC=your-corp,DC=com"
+  dataUserGroupDn: "CN=ES-DataUsers,OU=Groups,DC=your-corp,DC=com"

@@ -1,0 +1,78 @@
+# Sandbox — minimal footprint for local / single-node dev clusters.
+# Security and TLS disabled so no cert-manager or secrets are required.
+# Usage: helm template es-poc-cluster . -f environments/sandbox.yaml
+
+clusterName: es-sandbox
+
+# Disable privileged sysctl init container — set vm.max_map_count on the node instead.
+sysctl:
+  enabled: false
+
+security:
+  enabled: false   # xpack.security off — do not enable in shared environments
+
+tls:
+  enabled: false   # requires security.enabled=true; both must be false together
+
+master:
+  replicas: 1
+  heapSize: "256m"
+  antiAffinity: "disabled"   # single-node cluster has nowhere to spread
+  bootstrapped: false
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  storage:
+    size: "5Gi"
+
+data:
+  replicas: 2
+  heapSize: "512m"
+  antiAffinity: "disabled"
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  storage:
+    size: "20Gi"
+
+ingest:
+  replicas: 1
+  heapSize: "256m"
+  antiAffinity: "disabled"
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# Longer startup window — sandbox clusters are slow to form.
+probes:
+  liveness:
+    initialDelaySeconds: 120
+    periodSeconds: 30
+    timeoutSeconds: 15
+    failureThreshold: 5
+  readiness:
+    initialDelaySeconds: 90
+    periodSeconds: 15
+    timeoutSeconds: 15
+    failureThreshold: 5
+
+pdb:
+  master:
+    enabled: false   # 1 replica — PDB would block voluntary disruptions entirely
+  data:
+    enabled: false
+
+ad:
+  enabled: false

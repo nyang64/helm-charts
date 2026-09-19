@@ -1,0 +1,99 @@
+# Production — full replica count, largest resources, required anti-affinity,
+# external secrets only (no passwords in this file).
+# Usage: helm template es-poc-cluster . -f environments/prod.yaml
+#
+# Pre-requisites before helm install:
+#   kubectl create secret generic es-prod-elastic-secret \
+#     --from-literal=ELASTIC_PASSWORD=<vault-sourced-password> -n dia-es-poc
+#   kubectl create secret generic es-prod-ad-secret \
+#     --from-literal=AD_BIND_PASSWORD=<vault-sourced-password> -n dia-es-poc
+
+clusterName: es-prod
+
+sysctl:
+  enabled: true
+
+security:
+  enabled: true
+
+tls:
+  enabled: true
+  secretName: "es-prod-tls"
+  issuerName: "es-prod-issuer"
+
+# Prod always uses externally managed secrets — never chart-generated passwords.
+elasticPassword:
+  existingSecret: "es-prod-elastic-secret"
+
+master:
+  replicas: 3
+  heapSize: "1g"
+  antiAffinity: "required"   # hard rule: no two master pods on the same node
+  bootstrapped: true         # cluster already formed; removes cluster.initial_master_nodes
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+  storage:
+    size: "30Gi"
+
+data:
+  replicas: 6
+  heapSize: "2g"
+  antiAffinity: "preferred"   # best-effort spread; preferred so large batch deploys aren't blocked
+  resources:
+    requests:
+      cpu: "2000m"
+      memory: "4Gi"
+    limits:
+      cpu: "4000m"
+      memory: "4Gi"
+  storage:
+    size: "200Gi"
+
+ingest:
+  replicas: 2
+  heapSize: "1g"
+  antiAffinity: "preferred"
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+
+# Tighter probes for prod — fail fast so bad pods are replaced quickly.
+probes:
+  liveness:
+    initialDelaySeconds: 90
+    periodSeconds: 15
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readiness:
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+pdb:
+  master:
+    enabled: true
+    minAvailable: 2   # tolerate loss of 1 master; quorum intact with 2 remaining
+  data:
+    enabled: true
+    minAvailable: 4   # tolerate loss of 2 data nodes; majority of shards still reachable
+
+ad:
+  enabled: true
+  existingSecret: "es-prod-ad-secret"
+  domainName: "your-corp.com"
+  url: "ldaps://ad.your-corp.com:636"
+  bindDn: "CN=es-svc,OU=ServiceAccounts,DC=your-corp,DC=com"
+  userSearchBaseDn: "OU=Users,DC=your-corp,DC=com"
+  groupSearchBaseDn: "OU=Groups,DC=your-corp,DC=com"
+  adminGroupDn: "CN=ES-Admins,OU=Groups,DC=your-corp,DC=com"
+  dataUserGroupDn: "CN=ES-DataUsers,OU=Groups,DC=your-corp,DC=com"
