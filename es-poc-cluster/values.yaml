@@ -113,6 +113,42 @@ pdb:
     enabled: true
     minAvailable: 1
 
+# ML model loader — standalone Job applied manually after the cluster is healthy.
+# Usage (after helm install):
+#   kubectl apply -f <(helm template es-poc-cluster . \
+#     --show-only templates/model-loader-job.yaml) -n <namespace>
+# To swap models, delete the old Job first:
+#   kubectl delete job <release>-model-loader -n <namespace>
+#
+# Only rendered when ingest.mlEnabled=true.
+#
+# Embedding model options (all open-source, loadable via eland from HuggingFace):
+#
+# Model ID                                   Dims   Size    License     Notes
+# -----------------------------------------  ----  ------  ----------  ------------------------------------------
+# sentence-transformers/all-MiniLM-L6-v2      384   22 MB  Apache 2.0  Fastest; lowest RAM; good for high throughput
+# BAAI/bge-small-en-v1.5                      384   44 MB  MIT         Best quality-to-size ratio on MTEB
+# intfloat/e5-small-v2                        384   44 MB  MIT         Strong on QA/RAG tasks; fast inference
+# BAAI/bge-base-en-v1.5                       768  110 MB  MIT         Recommended: strong quality, manageable size
+# intfloat/e5-base-v2                         768  110 MB  MIT         Solid RAG performance; similar to bge-base
+# nomic-ai/nomic-embed-text-v1.5              768  137 MB  Apache 2.0  MRL support: truncatable to 512 or 256 dims
+# sentence-transformers/all-mpnet-base-v2     768  420 MB  Apache 2.0  High quality general-purpose model
+# BAAI/bge-large-en-v1.5                     1024  335 MB  MIT         High quality; needs 24Gi+ ingest pod RAM
+# intfloat/multilingual-e5-large             1024  560 MB  MIT         Best multilingual option
+# BAAI/bge-m3                                1024  570 MB  MIT         Multilingual; dense+sparse+colbert in one model
+#
+ml:
+  modelId: "BAAI/bge-base-en-v1.5"   # HuggingFace model ID to load
+  taskType: "text_embedding"
+  # hubUrl: override to point at an internal HuggingFace mirror for air-gapped clusters.
+  # The eland Job sets HF_ENDPOINT to this value.
+  hubUrl: "https://huggingface.co"
+  # insecure: skip TLS certificate verification when connecting to ES.
+  # Set true when using self-signed certs (the default cert-manager setup in this chart).
+  insecure: true
+  # eland image version should match the ES image tag.
+  elandImage: "docker.elastic.co/eland/eland:8.17.7"
+
 # Active Directory integration (disabled by default)
 ad:
   enabled: false
