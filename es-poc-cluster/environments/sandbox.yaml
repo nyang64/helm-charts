@@ -1,4 +1,4 @@
-# Sandbox — minimal footprint for local / single-node dev clusters.
+# Sandbox — 500 GB raw × 3 replicas = 1.5 TB total across 2 data pods (~750 GB each, rounded to 1Ti).
 # Security and TLS disabled so no cert-manager or secrets are required.
 # Usage: helm template es-poc-cluster . -f environments/sandbox.yaml
 
@@ -14,48 +14,51 @@ security:
 tls:
   enabled: false   # requires security.enabled=true; both must be false together
 
+# Master — 1 node, minimal: tracks 2 data nodes + a handful of shards
 master:
   replicas: 1
-  heapSize: "256m"
-  antiAffinity: "disabled"   # single-node cluster has nowhere to spread
+  heapSize: "512m"       # tiny cluster state; 512 MB heap is more than enough
+  antiAffinity: "disabled"
   bootstrapped: false
   resources:
     requests:
       cpu: "250m"
-      memory: "512Mi"
+      memory: "1Gi"      # heap(512m) + OS overhead; set equal to limits for Guaranteed QoS
     limits:
       cpu: "500m"
-      memory: "512Mi"
+      memory: "1Gi"
   storage:
-    size: "5Gi"
+    size: "10Gi"          # cluster state + logs only, no index data on master
 
+# Data — 2 pods × 1 Ti each = 2 Ti raw capacity; with replication covers 500 GB × 3
 data:
   replicas: 2
-  heapSize: "512m"
+  heapSize: "2g"         # 50% of 4 Gi RAM; leaves 2 Gi for Lucene OS page cache
   antiAffinity: "disabled"
   resources:
     requests:
-      cpu: "500m"
-      memory: "1Gi"
-    limits:
       cpu: "1000m"
-      memory: "1Gi"
+      memory: "4Gi"      # heap(2g) × 2 — equal requests/limits for Guaranteed QoS
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
   storage:
-    size: "20Gi"
+    size: "1Ti"           # 1 TiB per pod (~1.1 TB); covers 750 GB with headroom
 
+# Ingest — 1 pod, light pipeline processing only
 ingest:
   replicas: 1
-  heapSize: "256m"
+  heapSize: "1g"
   antiAffinity: "disabled"
   resources:
     requests:
-      cpu: "250m"
-      memory: "512Mi"
-    limits:
       cpu: "500m"
-      memory: "512Mi"
+      memory: "2Gi"      # heap(1g) × 2
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
 
-# Longer startup window — sandbox clusters are slow to form.
+# Generous startup window — sandbox clusters are slow to form on dev nodes.
 probes:
   liveness:
     initialDelaySeconds: 120
@@ -70,7 +73,7 @@ probes:
 
 pdb:
   master:
-    enabled: false   # 1 replica — PDB would block voluntary disruptions entirely
+    enabled: false   # 1 replica — PDB would block all voluntary disruptions
   data:
     enabled: false
 
