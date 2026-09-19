@@ -45,20 +45,21 @@ data:
   storage:
     size: "1Ti"           # 1 TiB per pod (~1.1 TB); covers 750 GB with headroom
 
-# Ingest — 1 pod, light pipeline processing only
+# Ingest+ML — 1 pod; needs extra native memory for model weights on top of heap.
 ingest:
   replicas: 1
-  heapSize: "1g"
+  heapSize: "512m"
+  mlEnabled: true
   antiAffinity: "disabled"
   resources:
     requests:
-      cpu: "500m"
-      memory: "2Gi"      # heap(1g) × 2
-    limits:
       cpu: "1000m"
-      memory: "2Gi"
+      memory: "4Gi"      # heap(512m) + JVM overhead + ~3Gi native memory for model weights
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
 
-# Generous startup window — sandbox clusters are slow to form on dev nodes.
+# Generous startup window — sandbox clusters are slow to form, and ML model load adds time.
 probes:
   liveness:
     initialDelaySeconds: 120

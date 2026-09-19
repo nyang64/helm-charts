@@ -54,18 +54,20 @@ data:
   storage:
     size: "3Ti"           # 3 TiB per pod (~3.3 TB); 5 pods = 15 Ti total raw
 
-# Ingest — 2 pods; matches prod heap so pipeline behaviour is realistic in testing.
+# Ingest+ML — 2 pods; matches prod heap so pipeline and model behaviour is realistic in testing.
+# 16Gi = 4g heap + ~4Gi JVM overhead + ~8Gi native memory for ML model weights.
 ingest:
   replicas: 2
   heapSize: "4g"
+  mlEnabled: true
   antiAffinity: "preferred"
   resources:
     requests:
       cpu: "2000m"
-      memory: "8Gi"      # heap(4g) × 2
+      memory: "16Gi"     # heap(4g) + JVM overhead + ~8Gi for ML model weights
     limits:
       cpu: "4000m"
-      memory: "8Gi"
+      memory: "16Gi"
 
 probes:
   liveness:

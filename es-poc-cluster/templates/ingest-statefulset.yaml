@@ -54,7 +54,7 @@ spec:
               containerPort: 9300
           env:
             - name: node.roles
-              value: "ingest"
+              value: "{{ if .Values.ingest.mlEnabled }}ingest,ml{{ else }}ingest{{ end }}"
             - name: ES_JAVA_OPTS
               value: "-Xms{{ .Values.ingest.heapSize }} -Xmx{{ .Values.ingest.heapSize }}"
             - name: discovery.seed_hosts

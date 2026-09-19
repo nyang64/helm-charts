@@ -65,10 +65,14 @@ data:
     size: "100Gi"
     storageClassName: ""
 
-# Ingest nodes — pre-process documents before indexing (stateless)
+# Ingest nodes — pre-process documents and optionally run ML embedding inference.
+# mlEnabled: true adds the 'ml' role so these pods host the embedding model.
+# When enabled, increase memory to cover model weights loaded into native (off-heap) memory:
+#   container RAM = heap × 2 (standard ES rule) + ML model weights (~4–8 Gi typical)
 ingest:
   replicas: 2
   heapSize: "512m"
+  mlEnabled: false          # set true to combine ingest + ml roles on the same pods
   antiAffinity: "preferred"
   persistence:
     enabled: false            # uses emptyDir by default; enable for ingest attachment pipelines
