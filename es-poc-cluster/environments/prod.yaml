@@ -45,19 +45,20 @@ master:
     size: "30Gi"          # cluster state snapshots + translog + logs; no index data
 
 # Data — 10 pods × 3 Ti each = 30 Ti raw capacity; covers 10 TB × 3 replicas upper bound.
-# 50% heap rule: 16g heap on 32 Gi RAM leaves 16 Gi for Lucene OS page cache.
-# Page cache is critical for search performance on multi-TB datasets.
+# int8_hnsw graph estimate: ~450 GB total / 10 pods = ~45 GB per pod must fit in page cache.
+# Heap intentionally kept at 16g (25% of 64 Gi) so the remaining 48 Gi goes to OS page cache
+# for the HNSW graph — vector search is page-cache-bound, not heap-bound.
 data:
   replicas: 10
-  heapSize: "16g"        # 50% of 32 Gi — do not exceed 31 GB (compressed OOP limit)
+  heapSize: "16g"        # do not exceed 31 GB (compressed OOP limit); 16g is ample for ES ops
   antiAffinity: "preferred"   # best-effort spread; 'required' would block large batch deploys
   resources:
     requests:
-      cpu: "4000m"       # 4 cores: indexing + search threads run concurrently per node
-      memory: "32Gi"     # heap(16g) × 2; equal requests/limits = Guaranteed QoS
+      cpu: "4000m"       # kNN search is memory-bound; 4 cores handles concurrent queries
+      memory: "64Gi"     # 16g heap + 48 Gi page cache to hold int8_hnsw graph in memory
     limits:
       cpu: "8000m"
-      memory: "32Gi"
+      memory: "64Gi"
   storage:
     size: "3Ti"           # 3 TiB per pod (~3.3 TB); 10 pods = 30 Ti total raw
 

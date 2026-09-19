@@ -38,17 +38,19 @@ master:
     size: "20Gi"          # cluster state + logs only
 
 # Data — 5 pods × 3 Ti each = 15 Ti raw; covers 5 TB × 3 replicas upper bound.
+# int8_hnsw graph ~225 GB total / 5 pods = ~45 GB per pod. 24 Gi page cache gives
+# ~50% cache coverage — some HNSW reads will hit disk, acceptable for nonprod testing.
 data:
   replicas: 5
-  heapSize: "8g"         # 50% of 16 Gi RAM; leaves 8 Gi for Lucene OS page cache
+  heapSize: "8g"         # 25% of 32 Gi; extra headroom intentionally left for page cache
   antiAffinity: "preferred"
   resources:
     requests:
       cpu: "2000m"
-      memory: "16Gi"     # heap(8g) × 2
+      memory: "32Gi"     # 8g heap + 24 Gi page cache for int8_hnsw (partial coverage)
     limits:
       cpu: "4000m"
-      memory: "16Gi"
+      memory: "32Gi"
   storage:
     size: "3Ti"           # 3 TiB per pod (~3.3 TB); 5 pods = 15 Ti total raw
 

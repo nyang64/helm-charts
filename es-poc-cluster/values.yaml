@@ -3,7 +3,7 @@ clusterName: es-poc-cluster
 
 image:
   repository: docker.elastic.co/elasticsearch/elasticsearch
-  tag: "8.11.0"
+  tag: "8.17.7"
   pullPolicy: IfNotPresent
 
 nameOverride: ""
