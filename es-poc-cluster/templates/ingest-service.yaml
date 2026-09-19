@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-ingest-headless
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    role: ingest
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "es-poc-cluster.selectorLabels" . | nindent 4 }}
+    role: ingest
+  ports:
+    - name: transport
+      port: 9300
+      targetPort: 9300

@@ -1,0 +1,23 @@
+Elasticsearch cluster {{ .Values.clusterName }} deployed successfully.
+
+Roles:
+  master : {{ .Values.master.replicas }} pods
+  data   : {{ .Values.data.replicas }} pods
+  ingest : {{ .Values.ingest.replicas }} pods
+
+To port-forward and test locally:
+  kubectl port-forward svc/{{ include "es-poc-cluster.fullname" . }}-ingest 9200:9200 -n {{ .Release.Namespace }}
+
+  {{- if .Values.tls.enabled }}
+  curl -k -u elastic:<ELASTIC_PASSWORD> https://localhost:9200/_cluster/health?pretty
+  {{- else }}
+  curl http://localhost:9200/_cluster/health?pretty
+  {{- end }}
+
+{{- if .Values.elasticPassword.existingSecret }}
+NOTE: ELASTIC_PASSWORD is in your pre-existing secret {{ .Values.elasticPassword.existingSecret }}
+  kubectl get secret {{ .Values.elasticPassword.existingSecret }} -n {{ .Release.Namespace }} -o jsonpath='{.data.ELASTIC_PASSWORD}' | base64 -d
+{{- else }}
+NOTE: Replace <ELASTIC_PASSWORD> with the value from secret {{ include "es-poc-cluster.fullname" . }}-bootstrap
+  kubectl get secret {{ include "es-poc-cluster.fullname" . }}-bootstrap -n {{ .Release.Namespace }} -o jsonpath='{.data.ELASTIC_PASSWORD}' | base64 -d
+{{- end }}

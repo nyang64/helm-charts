@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-config
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+data:
+  elasticsearch.yml: |
+    cluster.name: {{ .Values.clusterName | quote }}
+    network.host: "0.0.0.0"
+
+    {{- if .Values.security.enabled }}
+    xpack.security.enabled: true
+    {{- if .Values.tls.enabled }}
+    xpack.security.transport.ssl.enabled: true
+    xpack.security.transport.ssl.certificate: /usr/share/elasticsearch/config/certs/tls.crt
+    xpack.security.transport.ssl.key: /usr/share/elasticsearch/config/certs/tls.key
+    xpack.security.transport.ssl.certificate_authorities: /usr/share/elasticsearch/config/certs/ca.crt
+    xpack.security.transport.ssl.verification_mode: certificate
+    xpack.security.http.ssl.enabled: true
+    xpack.security.http.ssl.certificate: /usr/share/elasticsearch/config/certs/tls.crt
+    xpack.security.http.ssl.key: /usr/share/elasticsearch/config/certs/tls.key
+    xpack.security.http.ssl.certificate_authorities: /usr/share/elasticsearch/config/certs/ca.crt
+    {{- end }}
+    {{- else }}
+    xpack.security.enabled: false
+    {{- end }}
+
+    {{- if and .Values.ad.enabled .Values.security.enabled }}
+    xpack.security.authc.realms.active_directory.ad1:
+      order: 0
+      domain_name: {{ .Values.ad.domainName | quote }}
+      url: {{ .Values.ad.url | quote }}
+      bind_dn: {{ .Values.ad.bindDn | quote }}
+      bind_password: "${AD_BIND_PASSWORD}"
+      user_search:
+        base_dn: {{ .Values.ad.userSearchBaseDn | quote }}
+      group_search:
+        base_dn: {{ .Values.ad.groupSearchBaseDn | quote }}
+    {{- end }}

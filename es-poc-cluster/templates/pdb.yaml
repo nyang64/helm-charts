@@ -1,0 +1,30 @@
+{{- if .Values.pdb.master.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-master
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ min .Values.pdb.master.minAvailable (int .Values.master.replicas) }}
+  selector:
+    matchLabels:
+      {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+      role: master
+{{- end }}
+{{- if .Values.pdb.data.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-data
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ min .Values.pdb.data.minAvailable (int .Values.data.replicas) }}
+  selector:
+    matchLabels:
+      {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+      role: data
+{{- end }}

@@ -1,0 +1,42 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "es-poc-cluster.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: 9200
+        - port: 9300
+    - ports:
+        - port: 9200
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "es-poc-cluster.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: 9300
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    {{- if .Values.ad.enabled }}
+    - ports:
+        - port: 636
+          protocol: TCP
+        - port: 389
+          protocol: TCP
+    {{- end }}

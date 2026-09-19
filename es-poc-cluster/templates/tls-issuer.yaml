@@ -1,0 +1,10 @@
+{{- if .Values.tls.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ .Values.tls.issuerName }}
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+{{- end }}

@@ -1,0 +1,123 @@
+# Cluster-wide settings
+clusterName: es-poc-cluster
+
+image:
+  repository: docker.elastic.co/elasticsearch/elasticsearch
+  tag: "8.11.0"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: "es-poc-sa"
+  automountServiceAccountToken: false
+
+rbac:
+  create: true
+
+# Bootstrap elastic superuser password — required for probes and initial cluster access.
+# Use existingSecret in production. NEVER leave password as "changeme" in real deployments.
+elasticPassword:
+  existingSecret: ""      # name of pre-existing K8s secret with key ELASTIC_PASSWORD
+  password: "changeme"    # used only when existingSecret is empty
+
+# Elasticsearch security — disable only for isolated dev/test environments
+security:
+  enabled: true           # if false, sets xpack.security.enabled: false (insecure)
+
+# sysctl init container sets vm.max_map_count=262144.
+# Requires privileged pods. Disable if nodes already have this set at node level.
+sysctl:
+  enabled: true
+
+# Master nodes — control the cluster (elections, metadata)
+master:
+  replicas: 3
+  heapSize: "512m"
+  antiAffinity: "required"    # required | preferred | disabled
+  bootstrapped: false         # set to true after initial cluster formation to remove cluster.initial_master_nodes
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  storage:
+    size: "10Gi"
+    storageClassName: ""      # leave empty to use cluster default StorageClass
+
+# Data nodes — store and search the data
+data:
+  replicas: 6
+  heapSize: "1g"
+  antiAffinity: "preferred"   # required | preferred | disabled
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+  storage:
+    size: "100Gi"
+    storageClassName: ""
+
+# Ingest nodes — pre-process documents before indexing (stateless)
+ingest:
+  replicas: 2
+  heapSize: "512m"
+  antiAffinity: "preferred"
+  persistence:
+    enabled: false            # uses emptyDir by default; enable for ingest attachment pipelines
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  storage:
+    size: "10Gi"
+    storageClassName: ""
+
+tls:
+  enabled: true
+  secretName: "es-poc-tls"
+  issuerName: "es-poc-issuer"
+
+probes:
+  liveness:
+    initialDelaySeconds: 90
+    periodSeconds: 20
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readiness:
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+# PodDisruptionBudgets — minAvailable is capped to replicas automatically
+pdb:
+  master:
+    enabled: true
+    minAvailable: 2
+  data:
+    enabled: true
+    minAvailable: 1
+
+# Active Directory integration (disabled by default)
+ad:
+  enabled: false
+  existingSecret: ""          # name of pre-existing K8s secret — if set, chart does not create one
+  bindPassword: ""            # only used when existingSecret is empty (dev/test only)
+  domainName: "your-corp.com"
+  url: "ldaps://ad-server.your-corp.com:636"
+  bindDn: "CN=es-svc,OU=ServiceAccounts,DC=your-corp,DC=com"
+  userSearchBaseDn: "OU=Users,DC=your-corp,DC=com"
+  groupSearchBaseDn: "OU=Groups,DC=your-corp,DC=com"
+  adminGroupDn: "CN=ES-Admins,OU=Groups,DC=your-corp,DC=com"
+  dataUserGroupDn: "CN=ES-DataUsers,OU=Groups,DC=your-corp,DC=com"

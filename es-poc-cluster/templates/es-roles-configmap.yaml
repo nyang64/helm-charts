@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-roles
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+data:
+  roles.yml: |
+    es_admin:
+      cluster:
+        - all
+      indices:
+        - names: ["*"]
+          privileges:
+            - all
+
+    es_data_user:
+      cluster:
+        - monitor
+      indices:
+        - names: ["*"]
+          privileges:
+            - read
+            - write
+            - index
+
+  {{- if .Values.ad.enabled }}
+  role_mapping.yml: |
+    es_admin:
+      - {{ .Values.ad.adminGroupDn | quote }}
+    es_data_user:
+      - {{ .Values.ad.dataUserGroupDn | quote }}
+  {{- end }}

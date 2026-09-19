@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-master
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    role: master
+spec:
+  serviceName: {{ include "es-poc-cluster.fullname" . }}-master-headless
+  replicas: {{ .Values.master.replicas }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+      role: master
+  template:
+    metadata:
+      labels:
+        {{- include "es-poc-cluster.selectorLabels" . | nindent 8 }}
+        role: master
+    spec:
+      serviceAccountName: {{ include "es-poc-cluster.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 120
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      {{- include "es-poc-cluster.antiAffinity" (list . "master" .Values.master.antiAffinity) | nindent 6 }}
+      {{- if .Values.sysctl.enabled }}
+      initContainers:
+        - name: sysctl
+          image: busybox
+          securityContext:
+            privileged: true
+          command: ["sysctl", "-w", "vm.max_map_count=262144"]
+      {{- end }}
+      containers:
+        - name: elasticsearch
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: {{ if .Values.tls.enabled }}https{{ else }}http{{ end }}
+              containerPort: 9200
+            - name: transport
+              containerPort: 9300
+          env:
+            - name: node.roles
+              value: "master"
+            - name: ES_JAVA_OPTS
+              value: "-Xms{{ .Values.master.heapSize }} -Xmx{{ .Values.master.heapSize }}"
+            - name: discovery.seed_hosts
+              value: {{ include "es-poc-cluster.fullname" . }}-master-headless
+            {{- if not .Values.master.bootstrapped }}
+            - name: cluster.initial_master_nodes
+              value: {{ include "es-poc-cluster.masterNodes" . }}
+            {{- end }}
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.elasticPassword.existingSecret | default (printf "%s-bootstrap" (include "es-poc-cluster.fullname" .)) }}
+                  key: ELASTIC_PASSWORD
+            {{- if .Values.ad.enabled }}
+            - name: AD_BIND_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ad.existingSecret | default (printf "%s-ad-secret" (include "es-poc-cluster.fullname" .)) }}
+                  key: AD_BIND_PASSWORD
+            {{- end }}
+          resources:
+            {{- toYaml .Values.master.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - 'curl -sf -k -u "elastic:${ELASTIC_PASSWORD}" {{ if .Values.tls.enabled }}https{{ else }}http{{ end }}://localhost:9200/_cluster/health'
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - 'curl -sf -k -u "elastic:${ELASTIC_PASSWORD}" "{{ if .Values.tls.enabled }}https{{ else }}http{{ end }}://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"'
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/elasticsearch/data
+            - name: es-config
+              mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
+              subPath: elasticsearch.yml
+              readOnly: true
+            - name: es-roles
+              mountPath: /usr/share/elasticsearch/config/roles.yml
+              subPath: roles.yml
+              readOnly: true
+            {{- if .Values.ad.enabled }}
+            - name: es-roles
+              mountPath: /usr/share/elasticsearch/config/role_mapping.yml
+              subPath: role_mapping.yml
+              readOnly: true
+            {{- end }}
+            {{- if .Values.tls.enabled }}
+            - name: tls-certs
+              mountPath: /usr/share/elasticsearch/config/certs
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: es-config
+          configMap:
+            name: {{ include "es-poc-cluster.fullname" . }}-config
+        - name: es-roles
+          configMap:
+            name: {{ include "es-poc-cluster.fullname" . }}-roles
+        {{- if .Values.tls.enabled }}
+        - name: tls-certs
+          secret:
+            secretName: {{ .Values.tls.secretName }}
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.master.storage.storageClassName }}
+        storageClassName: {{ .Values.master.storage.storageClassName }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.master.storage.size }}
