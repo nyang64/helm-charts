@@ -52,18 +52,18 @@ data:
   storage:
     size: "3Ti"           # 3 TiB per pod (~3.3 TB); 5 pods = 15 Ti total raw
 
-# Ingest — 2 pods; lighter write load than prod so half the CPU budget.
+# Ingest — 2 pods; matches prod heap so pipeline behaviour is realistic in testing.
 ingest:
   replicas: 2
-  heapSize: "2g"
+  heapSize: "4g"
   antiAffinity: "preferred"
   resources:
     requests:
       cpu: "2000m"
-      memory: "4Gi"      # heap(2g) × 2
+      memory: "8Gi"      # heap(4g) × 2
     limits:
       cpu: "4000m"
-      memory: "4Gi"
+      memory: "8Gi"
 
 probes:
   liveness:

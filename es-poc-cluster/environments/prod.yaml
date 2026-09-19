@@ -62,18 +62,20 @@ data:
     size: "3Ti"           # 3 TiB per pod (~3.3 TB); 10 pods = 30 Ti total raw
 
 # Ingest — 2 pods; CPU is the bottleneck for pipeline processing (parsing, enrichment).
-# Memory sized for pipeline overhead + coordination buffers, not data storage.
+# 8g heap: leaves headroom for concurrent bulk request buffers, GeoIP enrichment,
+# and JVM GC under high write throughput. Ingest has no page cache benefit so the
+# non-heap half covers native thread stacks and in-flight document buffers.
 ingest:
   replicas: 2
-  heapSize: "4g"
+  heapSize: "8g"
   antiAffinity: "preferred"
   resources:
     requests:
       cpu: "4000m"       # pipeline parsing is CPU-intensive; 4 cores baseline
-      memory: "8Gi"      # heap(4g) × 2
+      memory: "16Gi"     # heap(8g) × 2
     limits:
       cpu: "8000m"
-      memory: "8Gi"
+      memory: "16Gi"
 
 # Tighter probes for prod — detect unhealthy pods faster.
 probes:
