@@ -27,6 +27,7 @@ spec:
             matchLabels:
               {{- include "es-poc-cluster.selectorLabels" . | nindent 14 }}
       ports:
+        - port: 9200
         - port: 9300
     - ports:
         - port: 53

@@ -1,4 +1,33 @@
 {{- if .Values.tls.enabled }}
+# Step 1: bootstrap issuer — only used to sign the CA cert below.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ .Values.tls.issuerName }}-bootstrap
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+# Step 2: CA certificate — isCA:true causes cert-manager to populate ca.crt in the Secret.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.tls.issuerName }}-ca
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+spec:
+  isCA: true
+  commonName: {{ include "es-poc-cluster.fullname" . }}-ca
+  secretName: {{ .Values.tls.issuerName }}-ca
+  issuerRef:
+    name: {{ .Values.tls.issuerName }}-bootstrap
+    kind: Issuer
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+---
+# Step 3: CA issuer — issues the cluster cert with a real ca.crt bundle.
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
@@ -6,5 +35,6 @@ metadata:
   labels:
     {{- include "es-poc-cluster.labels" . | nindent 4 }}
 spec:
-  selfSigned: {}
+  ca:
+    secretName: {{ .Values.tls.issuerName }}-ca
 {{- end }}

@@ -1,4 +1,4 @@
-# Production — 18–30 TB raw × 3 replicas across 6 data pods (3–5 Ti per pod).
+# Production — 18–30 TB raw × 3 replicas across 10 data pods (3–5 Ti per pod).
 # Sized for 5 Ti per pod to cover the upper bound with headroom.
 # All secrets must be pre-created externally — no passwords in this file.
 # Usage: helm template es-poc-cluster . -f environments/prod.yaml
