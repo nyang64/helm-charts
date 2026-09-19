@@ -1,23 +1,139 @@
-Elasticsearch cluster {{ .Values.clusterName }} deployed successfully.
+Elasticsearch cluster {{ .Values.clusterName }} deployed to namespace {{ .Release.Namespace }}.
 
-Roles:
   master : {{ .Values.master.replicas }} pods
-  data   : {{ .Values.data.replicas }} pods
-  ingest : {{ .Values.ingest.replicas }} pods
+  data   : {{ .Values.data.replicas }} pods  ({{ .Values.data.storage.size }} per pod)
+  ingest : {{ .Values.ingest.replicas }} pods{{ if .Values.ingest.mlEnabled }} [ingest+ml — embedding model required]{{ end }}
 
-To port-forward and test locally:
-  kubectl port-forward svc/{{ include "es-poc-cluster.fullname" . }}-ingest 9200:9200 -n {{ .Release.Namespace }}
+Retrieve this runbook any time:
+  helm get notes {{ .Release.Name }} -n {{ .Release.Namespace }}
 
-  {{- if .Values.tls.enabled }}
-  curl -k -u elastic:<ELASTIC_PASSWORD> https://localhost:9200/_cluster/health?pretty
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+POST-INSTALL RUNBOOK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 1 — Wait for all pods to be ready
+──────────────────────────────────────
+  kubectl get pods -n {{ .Release.Namespace }} -w
+
+
+STEP 2 — Port-forward and set environment variables
+─────────────────────────────────────────────────────
+  kubectl port-forward svc/{{ include "es-poc-cluster.fullname" . }}-ingest \
+    9200:9200 -n {{ .Release.Namespace }}
+
+  export ES_URL={{ if .Values.tls.enabled }}https{{ else }}http{{ end }}://localhost:9200
+
+  {{- if .Values.elasticPassword.existingSecret }}
+  export ELASTIC_PASSWORD=$(kubectl get secret {{ .Values.elasticPassword.existingSecret }} \
+    -n {{ .Release.Namespace }} \
+    -o jsonpath='{.data.ELASTIC_PASSWORD}' | base64 -d)
   {{- else }}
-  curl http://localhost:9200/_cluster/health?pretty
+  export ELASTIC_PASSWORD=$(kubectl get secret {{ include "es-poc-cluster.fullname" . }}-bootstrap \
+    -n {{ .Release.Namespace }} \
+    -o jsonpath='{.data.ELASTIC_PASSWORD}' | base64 -d)
   {{- end }}
 
-{{- if .Values.elasticPassword.existingSecret }}
-NOTE: ELASTIC_PASSWORD is in your pre-existing secret {{ .Values.elasticPassword.existingSecret }}
-  kubectl get secret {{ .Values.elasticPassword.existingSecret }} -n {{ .Release.Namespace }} -o jsonpath='{.data.ELASTIC_PASSWORD}' | base64 -d
-{{- else }}
-NOTE: Replace <ELASTIC_PASSWORD> with the value from secret {{ include "es-poc-cluster.fullname" . }}-bootstrap
-  kubectl get secret {{ include "es-poc-cluster.fullname" . }}-bootstrap -n {{ .Release.Namespace }} -o jsonpath='{.data.ELASTIC_PASSWORD}' | base64 -d
-{{- end }}
+  Verify cluster health:
+  curl -sf{{ if .Values.tls.enabled }} -k{{ end }} \
+    -u elastic:$ELASTIC_PASSWORD \
+    $ES_URL/_cluster/health?pretty
+
+{{ if .Values.ingest.mlEnabled -}}
+STEP 3 — Load the embedding model ({{ .Values.ml.modelId }})
+─────────────────────────────────────────────────────────────
+  Apply the model-loader Job (runs once; retries up to 5 times if ES is not ready):
+  kubectl apply -f <(helm template {{ .Release.Name }} . \
+    --show-only templates/model-loader-job.yaml) \
+    -n {{ .Release.Namespace }}
+
+  Watch progress:
+  kubectl logs -f job/{{ include "es-poc-cluster.fullname" . }}-model-loader \
+    -n {{ .Release.Namespace }}
+
+  Wait until the log shows the model started successfully.
+
+  Note: eland normalises the model ID for ES storage — forward slashes become
+  double underscores:  {{ .Values.ml.modelId }} → {{ .Values.ml.modelId | replace "/" "__" }}
+
+  To swap models later, delete the Job then re-apply with a new ml.modelId:
+  kubectl delete job {{ include "es-poc-cluster.fullname" . }}-model-loader \
+    -n {{ .Release.Namespace }}
+
+
+STEP 4 — Create an inference endpoint
+──────────────────────────────────────
+  curl -sf{{ if .Values.tls.enabled }} -k{{ end }} \
+    -u elastic:$ELASTIC_PASSWORD \
+    -X PUT "$ES_URL/_inference/text_embedding/{{ .Values.ml.modelId | replace "/" "-" | lower }}" \
+    -H "Content-Type: application/json" -d '
+    {
+      "service": "elasticsearch",
+      "service_settings": {
+        "model_id": "{{ .Values.ml.modelId | replace "/" "__" }}",
+        "num_allocations": {{ .Values.ingest.replicas }},
+        "num_threads": 2
+      }
+    }'
+
+
+STEP 5 — Create an index with semantic_text mapping
+─────────────────────────────────────────────────────
+  Adjust field names to match your document schema. The body field uses
+  semantic_text — ES automatically chunks and embeds it on every write.
+
+  curl -sf{{ if .Values.tls.enabled }} -k{{ end }} \
+    -u elastic:$ELASTIC_PASSWORD \
+    -X PUT "$ES_URL/knowledge-base" \
+    -H "Content-Type: application/json" -d '
+    {
+      "mappings": {
+        "properties": {
+          "title":      { "type": "text" },
+          "body":       { "type": "semantic_text",
+                          "inference_id": "{{ .Values.ml.modelId | replace "/" "-" | lower }}" },
+          "source_url": { "type": "keyword" },
+          "created_at": { "type": "date" }
+        }
+      }
+    }'
+
+
+STEP 6 — Smoke test
+─────────────────────
+  Index a document (ES chunks and embeds the body field automatically):
+  curl -sf{{ if .Values.tls.enabled }} -k{{ end }} \
+    -u elastic:$ELASTIC_PASSWORD \
+    -X POST "$ES_URL/knowledge-base/_doc" \
+    -H "Content-Type: application/json" -d '
+    {
+      "title": "Smoke test document",
+      "body": "Elasticsearch semantic_text automatically chunks and embeds this text using the deployed model.",
+      "source_url": "https://example.com/test",
+      "created_at": "{{ now | date "2006-01-02" }}"
+    }'
+
+  Wait ~5 seconds for the embedding Job to complete, then search:
+  curl -sf{{ if .Values.tls.enabled }} -k{{ end }} \
+    -u elastic:$ELASTIC_PASSWORD \
+    -X POST "$ES_URL/knowledge-base/_search?pretty" \
+    -H "Content-Type: application/json" -d '
+    {
+      "query": {
+        "semantic": {
+          "field": "body",
+          "query": "how does semantic search work?"
+        }
+      }
+    }'
+
+  A hit with a non-zero score confirms the full pipeline is working.
+
+{{ else -}}
+STEP 3 — Cluster is ready (ingest.mlEnabled=false — no ML model configured)
+─────────────────────────────────────────────────────────────────────────────
+  curl -sf{{ if .Values.tls.enabled }} -k{{ end }} \
+    -u elastic:$ELASTIC_PASSWORD \
+    $ES_URL/_cat/nodes?v
+
+{{ end -}}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
