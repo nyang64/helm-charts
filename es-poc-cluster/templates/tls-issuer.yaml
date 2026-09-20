@@ -1,5 +1,5 @@
 {{- if .Values.tls.enabled }}
-# Step 1: bootstrap issuer — only used to sign the CA cert below.
+# Step 1: bootstrap issuer -- only used to sign the CA cert below.
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
@@ -9,7 +9,7 @@ metadata:
 spec:
   selfSigned: {}
 ---
-# Step 2: CA certificate — isCA:true causes cert-manager to populate ca.crt in the Secret.
+# Step 2: CA certificate -- isCA:true causes cert-manager to populate ca.crt in the Secret.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -27,7 +27,7 @@ spec:
     algorithm: ECDSA
     size: 256
 ---
-# Step 3: CA issuer — issues the cluster cert with a real ca.crt bundle.
+# Step 3: CA issuer -- issues the cluster cert with a real ca.crt bundle.
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:

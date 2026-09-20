@@ -1,6 +1,6 @@
-# Production — 18–30 TB raw × 3 replicas across 10 data pods (3–5 Ti per pod).
+# Production -- 18-30 TB raw x 3 replicas across 10 data pods (3-5 Ti per pod).
 # Sized for 5 Ti per pod to cover the upper bound with headroom.
-# All secrets must be pre-created externally — no passwords in this file.
+# All secrets must be pre-created externally -- no passwords in this file.
 # Usage: helm template es-poc-cluster . -f environments/prod.yaml
 #
 # Pre-requisites:
@@ -34,12 +34,12 @@ tls:
   issuerName: "es-prod-issuer"
 
 elasticPassword:
-  existingSecret: "es-prod-elastic-secret"   # no password field — external secret only
+  existingSecret: "es-prod-elastic-secret"   # no password field -- external secret only
 
-# Master — 3 nodes managing 6 data nodes.
+# Master -- 3 nodes managing 6 data nodes.
 # Cluster state is proportional to shard count, not data volume.
-# Estimated 6 nodes × ~50 shards each = ~300 shards; 4 GB heap is ample.
-# Master is NOT in the data path — keep CPU allocation conservative.
+# Estimated 6 nodes x ~50 shards each = ~300 shards; 4 GB heap is ample.
+# Master is NOT in the data path -- keep CPU allocation conservative.
 master:
   replicas: 3
   heapSize: "4g"         # ~1 GB per 3000 shards; 4 GB handles large index counts comfortably
@@ -48,17 +48,17 @@ master:
   resources:
     requests:
       cpu: "500m"        # cluster state diffs and election are low-CPU; reserve burst headroom
-      memory: "8Gi"      # heap(4g) × 2; other half is OS overhead + GC buffers
+      memory: "8Gi"      # heap(4g) x 2; other half is OS overhead + GC buffers
     limits:
       cpu: "2000m"
       memory: "8Gi"
   storage:
     size: "30Gi"          # cluster state snapshots + translog + logs; no index data
 
-# Data — 10 pods × 3 Ti each = 30 Ti raw capacity; covers 10 TB × 3 replicas upper bound.
+# Data -- 10 pods x 3 Ti each = 30 Ti raw capacity; covers 10 TB x 3 replicas upper bound.
 # int8_hnsw graph estimate: ~450 GB total / 10 pods = ~45 GB per pod must fit in page cache.
 # Heap intentionally kept at 16g (25% of 64 Gi) so the remaining 48 Gi goes to OS page cache
-# for the HNSW graph — vector search is page-cache-bound, not heap-bound.
+# for the HNSW graph -- vector search is page-cache-bound, not heap-bound.
 data:
   replicas: 10
   heapSize: "16g"        # do not exceed 31 GB (compressed OOP limit); 16g is ample for ES ops
@@ -73,7 +73,7 @@ data:
   storage:
     size: "3Ti"           # 3 TiB per pod (~3.3 TB); 10 pods = 30 Ti total raw
 
-# Ingest+ML — 3 pods; embedding is now in both read and write paths so we add a third
+# Ingest+ML -- 3 pods; embedding is now in both read and write paths so we add a third
 # pod for redundancy and to share concurrent query + indexing inference load.
 # 24Gi = 8g heap + ~8Gi JVM overhead/buffers + ~8Gi native memory for ML model weights.
 ingest:
@@ -89,7 +89,7 @@ ingest:
       cpu: "8000m"
       memory: "24Gi"
 
-# Tighter probes for prod — detect unhealthy pods faster.
+# Tighter probes for prod -- detect unhealthy pods faster.
 probes:
   liveness:
     initialDelaySeconds: 90

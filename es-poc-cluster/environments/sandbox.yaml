@@ -1,4 +1,4 @@
-# Sandbox — 500 GB raw × 3 replicas = 1.5 TB total across 2 data pods (~750 GB each, rounded to 1Ti).
+# Sandbox -- 500 GB raw x 3 replicas = 1.5 TB total across 2 data pods (~750 GB each, rounded to 1Ti).
 # Security and TLS disabled so no cert-manager or secrets are required.
 # Usage: helm template es-poc-cluster . -f environments/sandbox.yaml
 
@@ -6,19 +6,19 @@ clusterName: es-sandbox
 fullnameOverride: "es-sandbox"
 
 istio:
-  enabled: false   # sandbox has no Istio — plain HTTP on port 9200
+  enabled: false   # sandbox has no Istio -- plain HTTP on port 9200
 
-# Disable privileged sysctl init container — set vm.max_map_count on the node instead.
+# Disable privileged sysctl init container -- set vm.max_map_count on the node instead.
 sysctl:
   enabled: false
 
 security:
-  enabled: false   # xpack.security off — do not enable in shared environments
+  enabled: false   # xpack.security off -- do not enable in shared environments
 
 tls:
   enabled: false   # requires security.enabled=true; both must be false together
 
-# Master — 1 node, minimal: tracks 2 data nodes + a handful of shards
+# Master -- 1 node, minimal: tracks 2 data nodes + a handful of shards
 master:
   replicas: 1
   heapSize: "512m"       # tiny cluster state; 512 MB heap is more than enough
@@ -34,7 +34,7 @@ master:
   storage:
     size: "10Gi"          # cluster state + logs only, no index data on master
 
-# Data — 2 pods × 1 Ti each = 2 Ti raw capacity; with replication covers 500 GB × 3
+# Data -- 2 pods x 1 Ti each = 2 Ti raw capacity; with replication covers 500 GB x 3
 data:
   replicas: 2
   heapSize: "2g"         # 50% of 4 Gi RAM; leaves 2 Gi for Lucene OS page cache
@@ -42,14 +42,14 @@ data:
   resources:
     requests:
       cpu: "1000m"
-      memory: "4Gi"      # heap(2g) × 2 — equal requests/limits for Guaranteed QoS
+      memory: "4Gi"      # heap(2g) x 2 -- equal requests/limits for Guaranteed QoS
     limits:
       cpu: "2000m"
       memory: "4Gi"
   storage:
     size: "1Ti"           # 1 TiB per pod (~1.1 TB); covers 750 GB with headroom
 
-# Ingest+ML — 1 pod; needs extra native memory for model weights on top of heap.
+# Ingest+ML -- 1 pod; needs extra native memory for model weights on top of heap.
 ingest:
   replicas: 1
   heapSize: "512m"
@@ -63,7 +63,7 @@ ingest:
       cpu: "2000m"
       memory: "4Gi"
 
-# Generous startup window — sandbox clusters are slow to form, and ML model load adds time.
+# Generous startup window -- sandbox clusters are slow to form, and ML model load adds time.
 probes:
   liveness:
     initialDelaySeconds: 120
@@ -78,7 +78,7 @@ probes:
 
 pdb:
   master:
-    enabled: false   # 1 replica — PDB would block all voluntary disruptions
+    enabled: false   # 1 replica -- PDB would block all voluntary disruptions
   data:
     enabled: false
 

@@ -1,6 +1,6 @@
 apiVersion: v2
 name: es-poc-cluster
-description: Elasticsearch cluster with master, data, and ingest roles — secured with TLS, xpack.security, and optional AD auth
+description: Elasticsearch cluster with master, data, and ingest roles -- secured with TLS, xpack.security, and optional AD auth
 type: application
 version: 0.3.0
 appVersion: "8.17.7"

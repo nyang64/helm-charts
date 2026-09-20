@@ -1,5 +1,5 @@
 {{- if and .Values.ingest.mlEnabled .Values.ml.installJob }}
-# Standalone Job — NOT a Helm hook. Apply manually after the cluster is healthy:
+# Standalone Job -- NOT a Helm hook. Apply manually after the cluster is healthy:
 #
 #   kubectl apply -f <(helm template es-poc-cluster . \
 #     --show-only templates/model-loader-job.yaml \
@@ -19,7 +19,7 @@ metadata:
     app.kubernetes.io/component: model-loader
 spec:
   backoffLimit: 5
-  activeDeadlineSeconds: 3600   # hard stop after 1 h — large models can be slow to upload
+  activeDeadlineSeconds: 3600   # hard stop after 1 h -- large models can be slow to upload
   template:
     metadata:
       labels:

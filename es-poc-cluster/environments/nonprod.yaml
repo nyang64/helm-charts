@@ -1,4 +1,4 @@
-# Non-production — 9–15 TB raw × 3 replicas = half of prod capacity across 5 data pods.
+# Non-production -- 9-15 TB raw x 3 replicas = half of prod capacity across 5 data pods.
 # Per-pod storage matches prod (5 Ti each) because half the data with half the nodes
 # works out to the same per-node footprint.
 # Usage: helm template es-poc-cluster . -f environments/nonprod.yaml
@@ -31,7 +31,7 @@ elasticPassword:
   existingSecret: ""
   password: "changeme-nonprod"   # rotate before first deployment
 
-# Master — 3 nodes managing a 3-data-node cluster.
+# Master -- 3 nodes managing a 3-data-node cluster.
 # Cluster state is proportionally smaller than prod (~half the shards/indices).
 master:
   replicas: 3
@@ -41,16 +41,16 @@ master:
   resources:
     requests:
       cpu: "250m"        # cluster management is mostly single-threaded; low CPU ceiling
-      memory: "4Gi"      # heap(2g) × 2
+      memory: "4Gi"      # heap(2g) x 2
     limits:
       cpu: "1000m"
       memory: "4Gi"
   storage:
     size: "20Gi"          # cluster state + logs only
 
-# Data — 5 pods × 3 Ti each = 15 Ti raw; covers 5 TB × 3 replicas upper bound.
+# Data -- 5 pods x 3 Ti each = 15 Ti raw; covers 5 TB x 3 replicas upper bound.
 # int8_hnsw graph ~225 GB total / 5 pods = ~45 GB per pod. 24 Gi page cache gives
-# ~50% cache coverage — some HNSW reads will hit disk, acceptable for nonprod testing.
+# ~50% cache coverage -- some HNSW reads will hit disk, acceptable for nonprod testing.
 data:
   replicas: 5
   heapSize: "8g"         # 25% of 32 Gi; extra headroom intentionally left for page cache
@@ -65,7 +65,7 @@ data:
   storage:
     size: "3Ti"           # 3 TiB per pod (~3.3 TB); 5 pods = 15 Ti total raw
 
-# Ingest+ML — 2 pods; matches prod heap so pipeline and model behaviour is realistic in testing.
+# Ingest+ML -- 2 pods; matches prod heap so pipeline and model behaviour is realistic in testing.
 # 16Gi = 4g heap + ~4Gi JVM overhead + ~8Gi native memory for ML model weights.
 ingest:
   replicas: 2

@@ -1,7 +1,7 @@
 {{- if and .Values.istio.enabled .Values.istio.gateway.hostname }}
 # Binds to the shared Istio ingress gateway pod (selected by istio.gateway.selector).
 # Listens on 443/HTTPS for the external ES hostname; TLS terminated here.
-# The gateway pod lives in istio-system — it was deployed by the platform team, not this chart.
+# The gateway pod lives in istio-system -- it was deployed by the platform team, not this chart.
 apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:

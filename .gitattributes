@@ -1,0 +1,19 @@
+# Normalize line endings to LF in the repo; checkout as LF on all platforms.
+# This prevents Windows git from converting LF->CRLF, which breaks helm template
+# and shell scripts embedded in NOTES.txt and values.yaml comments.
+* text=auto eol=lf
+
+# Explicitly mark known text files
+*.yaml text eol=lf
+*.yml  text eol=lf
+*.tpl  text eol=lf
+*.txt  text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.sh   text eol=lf
+
+# Binary files -- no line ending conversion
+*.png  binary
+*.jpg  binary
+*.gz   binary
+*.zip  binary

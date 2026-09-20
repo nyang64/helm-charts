@@ -17,13 +17,13 @@ serviceAccount:
 rbac:
   create: true
 
-# Bootstrap elastic superuser password — required for probes and initial cluster access.
+# Bootstrap elastic superuser password -- required for probes and initial cluster access.
 # Use existingSecret in production. NEVER leave password as "changeme" in real deployments.
 elasticPassword:
   existingSecret: ""      # name of pre-existing K8s secret with key ELASTIC_PASSWORD
   password: "changeme"    # used only when existingSecret is empty
 
-# Elasticsearch security — disable only for isolated dev/test environments
+# Elasticsearch security -- disable only for isolated dev/test environments
 security:
   enabled: true           # if false, sets xpack.security.enabled: false (insecure)
 
@@ -32,7 +32,7 @@ security:
 sysctl:
   enabled: true
 
-# Master nodes — control the cluster (elections, metadata)
+# Master nodes -- control the cluster (elections, metadata)
 master:
   replicas: 3
   heapSize: "512m"
@@ -49,7 +49,7 @@ master:
     size: "10Gi"
     storageClassName: ""      # leave empty to use cluster default StorageClass
 
-# Data nodes — store and search the data
+# Data nodes -- store and search the data
 data:
   replicas: 6
   heapSize: "1g"
@@ -65,10 +65,10 @@ data:
     size: "100Gi"
     storageClassName: ""
 
-# Ingest nodes — pre-process documents and optionally run ML embedding inference.
+# Ingest nodes -- pre-process documents and optionally run ML embedding inference.
 # mlEnabled: true adds the 'ml' role so these pods host the embedding model.
 # When enabled, increase memory to cover model weights loaded into native (off-heap) memory:
-#   container RAM = heap × 2 (standard ES rule) + ML model weights (~4–8 Gi typical)
+#   container RAM = heap x 2 (standard ES rule) + ML model weights (~4-8 Gi typical)
 ingest:
   replicas: 2
   heapSize: "512m"
@@ -89,8 +89,8 @@ ingest:
 
 # Istio service mesh integration.
 # When enabled:
-#   - HTTP TLS (port 9200) is handled by Envoy mTLS — ES listens plain HTTP internally
-#   - Transport TLS (port 9300) stays with cert-manager — ES uses it for node authentication
+#   - HTTP TLS (port 9200) is handled by Envoy mTLS -- ES listens plain HTTP internally
+#   - Transport TLS (port 9300) stays with cert-manager -- ES uses it for node authentication
 #   - PeerAuthentication (STRICT mTLS) and AuthorizationPolicy are deployed
 #   - Port 9300 is excluded from Istio interception via pod annotations
 # When disabled: all TLS is managed by cert-manager (or none if tls.enabled=false).
@@ -106,7 +106,7 @@ istio:
     hostname: ""
     tls:
       # SIMPLE: gateway terminates TLS, forwards plain HTTP to ES pods (recommended).
-      # PASSTHROUGH: not supported — ES HTTP TLS is disabled when istio.enabled=true.
+      # PASSTHROUGH: not supported -- ES HTTP TLS is disabled when istio.enabled=true.
       mode: SIMPLE
       # credentialName: K8s secret in the istio-system namespace holding the TLS cert.
       # Required when mode=SIMPLE. Create with:
@@ -131,7 +131,7 @@ probes:
     timeoutSeconds: 10
     failureThreshold: 3
 
-# PodDisruptionBudgets — minAvailable is capped to replicas automatically
+# PodDisruptionBudgets -- minAvailable is capped to replicas automatically
 pdb:
   master:
     enabled: true
@@ -140,7 +140,7 @@ pdb:
     enabled: true
     minAvailable: 1
 
-# ML model loader — standalone Job applied manually after the cluster is healthy.
+# ML model loader -- standalone Job applied manually after the cluster is healthy.
 # Usage (after helm install):
 #   kubectl apply -f <(helm template es-poc-cluster . \
 #     --show-only templates/model-loader-job.yaml) -n <namespace>
@@ -166,7 +166,7 @@ pdb:
 #
 ml:
   # installJob: controls whether the model-loader Job is created during helm install/upgrade.
-  # Default false — the cluster must be healthy before the Job runs or it will exhaust retries.
+  # Default false -- the cluster must be healthy before the Job runs or it will exhaust retries.
   # Apply manually after STEP 1 (pods ready) using the command in the NOTES runbook, which
   # passes --set ml.installJob=true to render the Job on demand.
   installJob: false
@@ -184,7 +184,7 @@ ml:
 # Active Directory integration (disabled by default)
 ad:
   enabled: false
-  existingSecret: ""          # name of pre-existing K8s secret — if set, chart does not create one
+  existingSecret: ""          # name of pre-existing K8s secret -- if set, chart does not create one
   bindPassword: ""            # only used when existingSecret is empty (dev/test only)
   domainName: "your-corp.com"
   url: "ldaps://ad-server.your-corp.com:636"

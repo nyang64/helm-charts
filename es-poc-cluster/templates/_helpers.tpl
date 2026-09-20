@@ -94,7 +94,7 @@ affinity:
 
 {{/*
 HTTP scheme for ES port 9200.
-When Istio is enabled, Envoy handles TLS on 9200 — ES listens plain HTTP internally.
+When Istio is enabled, Envoy handles TLS on 9200 -- ES listens plain HTTP internally.
 When Istio is disabled, scheme follows tls.enabled.
 */}}
 {{- define "es-poc-cluster.httpScheme" -}}

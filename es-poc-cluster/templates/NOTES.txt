@@ -2,28 +2,28 @@ Elasticsearch cluster {{ .Values.clusterName }} deployed to namespace {{ .Releas
 
   master : {{ .Values.master.replicas }} pods
   data   : {{ .Values.data.replicas }} pods  ({{ .Values.data.storage.size }} per pod)
-  ingest : {{ .Values.ingest.replicas }} pods{{ if .Values.ingest.mlEnabled }} [ingest+ml — embedding model required]{{ end }}
+  ingest : {{ .Values.ingest.replicas }} pods{{ if .Values.ingest.mlEnabled }} [ingest+ml -- embedding model required]{{ end }}
 
 Retrieve this runbook any time:
   helm get notes {{ .Release.Name }} -n {{ .Release.Namespace }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
 POST-INSTALL RUNBOOK
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
 {{- if .Values.istio.gateway.hostname }}
 
-PRE-REQUISITE — TLS secret for the Istio ingress gateway (platform team)
-─────────────────────────────────────────────────────────────────────────
+PRE-REQUISITE -- TLS secret for the Istio ingress gateway (platform team)
+-------------------------------------------------------------------------
   The Gateway CRD references a TLS secret in the istio-system namespace.
   This must be created BEFORE the gateway will serve external HTTPS traffic.
-  It is out of scope for this chart — coordinate with your platform team.
+  It is out of scope for this chart -- coordinate with your platform team.
 
-  Option A — from an existing cert/key pair:
+  Option A -- from an existing cert/key pair:
   kubectl create secret tls {{ .Values.istio.gateway.tls.credentialName }} \
     --cert=tls.crt --key=tls.key \
     -n istio-system
 
-  Option B — via cert-manager (targeting istio-system):
+  Option B -- via cert-manager (targeting istio-system):
   kubectl apply -f - <<EOF
   apiVersion: cert-manager.io/v1
   kind: Certificate
@@ -39,15 +39,15 @@ PRE-REQUISITE — TLS secret for the Istio ingress gateway (platform team)
   EOF
 {{- end }}
 
-STEP 1 — Wait for all pods to be ready
-──────────────────────────────────────
+STEP 1 -- Wait for all pods to be ready
+--------------------------------------
   kubectl get pods -n {{ .Release.Namespace }} -w
 
 
-STEP 2 — Connect to the cluster
-────────────────────────────────
+STEP 2 -- Connect to the cluster
+--------------------------------
 {{- if .Values.istio.gateway.hostname }}
-  External URL (via Istio Gateway — no port-forward needed):
+  External URL (via Istio Gateway -- no port-forward needed):
   export ES_URL=https://{{ .Values.istio.gateway.hostname }}
 
   Or port-forward for local testing:
@@ -58,7 +58,7 @@ STEP 2 — Connect to the cluster
     9200:9200 -n {{ .Release.Namespace }}
   export ES_URL={{ include "es-poc-cluster.httpScheme" . }}://localhost:9200
 
-  The elastic superuser authenticates via the native realm — it is always
+  The elastic superuser authenticates via the native realm -- it is always
   available even when AD is unreachable. Use it for all setup steps below.
 
   {{- if .Values.elasticPassword.existingSecret }}
@@ -79,9 +79,9 @@ STEP 2 — Connect to the cluster
 {{- if .Values.ad.enabled }}
 
 
-STEP 3 — Verify AD integration
-───────────────────────────────
-  AD connectivity failure does NOT affect the elastic superuser — only AD
+STEP 3 -- Verify AD integration
+-------------------------------
+  AD connectivity failure does NOT affect the elastic superuser -- only AD
   users are locked out. The cluster itself continues to operate normally.
 
   Authenticate as an AD user to confirm group-to-role mapping works:
@@ -99,8 +99,8 @@ STEP 3 — Verify AD integration
 {{- end }}
 
 
-STEP {{ if .Values.ad.enabled }}4{{ else }}3{{ end }} — Create an application API key
-──────────────────────────────────────────────────────────────────────────────────────
+STEP {{ if .Values.ad.enabled }}4{{ else }}3{{ end }} -- Create an application API key
+--------------------------------------------------------------------------------------
   Applications authenticate with API keys, not user credentials. Keys are
   scoped to exact permissions, have no AD dependency at runtime, and can be
   rotated without changing app configuration.
@@ -129,14 +129,14 @@ STEP {{ if .Values.ad.enabled }}4{{ else }}3{{ end }} — Create an application 
     --from-literal=ES_API_KEY="<base64(id:api_key)>" \
     -n <app-namespace>
 
-  Applications set this header on every request — no username or AD lookup:
+  Applications set this header on every request -- no username or AD lookup:
   Authorization: ApiKey <base64(id:api_key)>
 
 {{ if .Values.ingest.mlEnabled -}}
-STEP {{ if .Values.ad.enabled }}5{{ else }}4{{ end }} — Load the embedding model ({{ .Values.ml.modelId }})
-───────────────────────────────────────────────────────────────────────────────────────────────────────────
+STEP {{ if .Values.ad.enabled }}5{{ else }}4{{ end }} -- Load the embedding model ({{ .Values.ml.modelId }})
+-----------------------------------------------------------------------------------------------------------
   Apply the model-loader Job (runs once; retries up to 5 times if ES is not ready).
-  ml.installJob=true is required — the Job is off by default to prevent it running
+  ml.installJob=true is required -- the Job is off by default to prevent it running
   before the cluster is healthy:
   kubectl apply -f <(helm template {{ .Release.Name }} . \
     --show-only templates/model-loader-job.yaml \
@@ -149,16 +149,16 @@ STEP {{ if .Values.ad.enabled }}5{{ else }}4{{ end }} — Load the embedding mod
 
   Wait until the log shows the model started successfully.
 
-  Note: eland normalises the model ID for ES storage — forward slashes become
-  double underscores:  {{ .Values.ml.modelId }} → {{ .Values.ml.modelId | replace "/" "__" }}
+  Note: eland normalises the model ID for ES storage -- forward slashes become
+  double underscores:  {{ .Values.ml.modelId }} -> {{ .Values.ml.modelId | replace "/" "__" }}
 
   To swap models later, delete the Job then re-apply with a new ml.modelId:
   kubectl delete job {{ include "es-poc-cluster.fullname" . }}-model-loader \
     -n {{ .Release.Namespace }}
 
 
-STEP {{ if .Values.ad.enabled }}6{{ else }}5{{ end }} — Create an inference endpoint
-──────────────────────────────────────────────────────────────────────────────────────
+STEP {{ if .Values.ad.enabled }}6{{ else }}5{{ end }} -- Create an inference endpoint
+--------------------------------------------------------------------------------------
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
     -X PUT "$ES_URL/_inference/text_embedding/{{ .Values.ml.modelId | replace "/" "-" | lower }}" \
@@ -173,10 +173,10 @@ STEP {{ if .Values.ad.enabled }}6{{ else }}5{{ end }} — Create an inference en
     }'
 
 
-STEP {{ if .Values.ad.enabled }}7{{ else }}6{{ end }} — Create an index with semantic_text mapping
-────────────────────────────────────────────────────────────────────────────────────────────────────
+STEP {{ if .Values.ad.enabled }}7{{ else }}6{{ end }} -- Create an index with semantic_text mapping
+----------------------------------------------------------------------------------------------------
   Adjust field names to match your document schema. The body field uses
-  semantic_text — ES automatically chunks and embeds it on every write.
+  semantic_text -- ES automatically chunks and embeds it on every write.
 
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
@@ -195,8 +195,8 @@ STEP {{ if .Values.ad.enabled }}7{{ else }}6{{ end }} — Create an index with s
     }'
 
 
-STEP {{ if .Values.ad.enabled }}8{{ else }}7{{ end }} — Smoke test
-───────────────────────────────────────────────────────────────────
+STEP {{ if .Values.ad.enabled }}8{{ else }}7{{ end }} -- Smoke test
+-------------------------------------------------------------------
   Index a document (ES chunks and embeds the body field automatically):
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
@@ -226,11 +226,11 @@ STEP {{ if .Values.ad.enabled }}8{{ else }}7{{ end }} — Smoke test
   A hit with a non-zero score confirms the full pipeline is working.
 
 {{ else -}}
-STEP {{ if .Values.ad.enabled }}5{{ else }}4{{ end }} — Cluster is ready (ingest.mlEnabled=false — no ML model configured)
-─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+STEP {{ if .Values.ad.enabled }}5{{ else }}4{{ end }} -- Cluster is ready (ingest.mlEnabled=false -- no ML model configured)
+-----------------------------------------------------------------------------------------------------------------------------
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
     "$ES_URL/_cat/nodes?v"
 
 {{ end -}}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+================================================================
