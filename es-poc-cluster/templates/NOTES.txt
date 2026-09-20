@@ -58,6 +58,9 @@ STEP 2 — Connect to the cluster
     9200:9200 -n {{ .Release.Namespace }}
   export ES_URL={{ include "es-poc-cluster.httpScheme" . }}://localhost:9200
 
+  The elastic superuser authenticates via the native realm — it is always
+  available even when AD is unreachable. Use it for all setup steps below.
+
   {{- if .Values.elasticPassword.existingSecret }}
   export ELASTIC_PASSWORD=$(kubectl get secret {{ .Values.elasticPassword.existingSecret }} \
     -n {{ .Release.Namespace }} \
@@ -69,13 +72,69 @@ STEP 2 — Connect to the cluster
   {{- end }}
 
   Verify cluster health:
-  curl -sf{{ if .Values.tls.enabled }} -k{{ end }} \
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
-    $ES_URL/_cluster/health?pretty
+    "$ES_URL/_cluster/health?pretty"
+
+{{- if .Values.ad.enabled }}
+
+
+STEP 3 — Verify AD integration
+───────────────────────────────
+  AD connectivity failure does NOT affect the elastic superuser — only AD
+  users are locked out. The cluster itself continues to operate normally.
+
+  Authenticate as an AD user to confirm group-to-role mapping works:
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
+    -u "DOMAIN\\your-ad-username:your-ad-password" \
+    "$ES_URL/_security/_authenticate?pretty"
+  # The "roles" array in the response must contain the expected mapped role.
+  # If AD is unreachable: this returns 401; elastic still returns 200.
+
+  To check which roles an AD user would receive without their password:
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
+    -u elastic:$ELASTIC_PASSWORD \
+    -X POST "$ES_URL/_security/user/DOMAIN%5Cyour-ad-username/_has_privileges" \
+    -H "Content-Type: application/json" -d '{"index":[{"names":["*"],"privileges":["read"]}]}'
+{{- end }}
+
+
+STEP {{ if .Values.ad.enabled }}4{{ else }}3{{ end }} — Create an application API key
+──────────────────────────────────────────────────────────────────────────────────────
+  Applications authenticate with API keys, not user credentials. Keys are
+  scoped to exact permissions, have no AD dependency at runtime, and can be
+  rotated without changing app configuration.
+
+  Create a key scoped to knowledge-base read/write (run as elastic):
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
+    -u elastic:$ELASTIC_PASSWORD \
+    -X POST "$ES_URL/_security/api_key" \
+    -H "Content-Type: application/json" -d '
+    {
+      "name": "{{ .Values.clusterName }}-app-key",
+      "role_descriptors": {
+        "knowledge_base_rw": {
+          "indices": [{
+            "names":      ["knowledge-base*"],
+            "privileges": ["read", "write", "create_index"]
+          }]
+        }
+      }
+    }'
+  # Response: { "id": "abc", "api_key": "xyz", ... }
+  # Encode:    echo -n "abc:xyz" | base64
+
+  Store in a K8s secret in the application namespace:
+  kubectl create secret generic es-api-key \
+    --from-literal=ES_API_KEY="<base64(id:api_key)>" \
+    -n <app-namespace>
+
+  Applications set this header on every request — no username or AD lookup:
+  Authorization: ApiKey <base64(id:api_key)>
 
 {{ if .Values.ingest.mlEnabled -}}
-STEP 3 — Load the embedding model ({{ .Values.ml.modelId }})
-─────────────────────────────────────────────────────────────
+STEP {{ if .Values.ad.enabled }}5{{ else }}4{{ end }} — Load the embedding model ({{ .Values.ml.modelId }})
+───────────────────────────────────────────────────────────────────────────────────────────────────────────
   Apply the model-loader Job (runs once; retries up to 5 times if ES is not ready):
   kubectl apply -f <(helm template {{ .Release.Name }} . \
     --show-only templates/model-loader-job.yaml) \
@@ -95,9 +154,9 @@ STEP 3 — Load the embedding model ({{ .Values.ml.modelId }})
     -n {{ .Release.Namespace }}
 
 
-STEP 4 — Create an inference endpoint
-──────────────────────────────────────
-  curl -sf{{ if .Values.tls.enabled }} -k{{ end }} \
+STEP {{ if .Values.ad.enabled }}6{{ else }}5{{ end }} — Create an inference endpoint
+──────────────────────────────────────────────────────────────────────────────────────
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
     -X PUT "$ES_URL/_inference/text_embedding/{{ .Values.ml.modelId | replace "/" "-" | lower }}" \
     -H "Content-Type: application/json" -d '
@@ -111,12 +170,12 @@ STEP 4 — Create an inference endpoint
     }'
 
 
-STEP 5 — Create an index with semantic_text mapping
-─────────────────────────────────────────────────────
+STEP {{ if .Values.ad.enabled }}7{{ else }}6{{ end }} — Create an index with semantic_text mapping
+────────────────────────────────────────────────────────────────────────────────────────────────────
   Adjust field names to match your document schema. The body field uses
   semantic_text — ES automatically chunks and embeds it on every write.
 
-  curl -sf{{ if .Values.tls.enabled }} -k{{ end }} \
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
     -X PUT "$ES_URL/knowledge-base" \
     -H "Content-Type: application/json" -d '
@@ -133,10 +192,10 @@ STEP 5 — Create an index with semantic_text mapping
     }'
 
 
-STEP 6 — Smoke test
-─────────────────────
+STEP {{ if .Values.ad.enabled }}8{{ else }}7{{ end }} — Smoke test
+───────────────────────────────────────────────────────────────────
   Index a document (ES chunks and embeds the body field automatically):
-  curl -sf{{ if .Values.tls.enabled }} -k{{ end }} \
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
     -X POST "$ES_URL/knowledge-base/_doc" \
     -H "Content-Type: application/json" -d '
@@ -147,8 +206,8 @@ STEP 6 — Smoke test
       "created_at": "{{ now | date "2006-01-02" }}"
     }'
 
-  Wait ~5 seconds for the embedding Job to complete, then search:
-  curl -sf{{ if .Values.tls.enabled }} -k{{ end }} \
+  Wait ~5 seconds for the embedding to complete, then search:
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
     -X POST "$ES_URL/knowledge-base/_search?pretty" \
     -H "Content-Type: application/json" -d '
@@ -164,11 +223,11 @@ STEP 6 — Smoke test
   A hit with a non-zero score confirms the full pipeline is working.
 
 {{ else -}}
-STEP 3 — Cluster is ready (ingest.mlEnabled=false — no ML model configured)
-─────────────────────────────────────────────────────────────────────────────
-  curl -sf{{ if .Values.tls.enabled }} -k{{ end }} \
+STEP {{ if .Values.ad.enabled }}5{{ else }}4{{ end }} — Cluster is ready (ingest.mlEnabled=false — no ML model configured)
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
-    $ES_URL/_cat/nodes?v
+    "$ES_URL/_cat/nodes?v"
 
 {{ end -}}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
