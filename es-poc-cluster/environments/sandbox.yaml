@@ -3,6 +3,7 @@
 # Usage: helm template es-poc-cluster . -f environments/sandbox.yaml
 
 clusterName: es-sandbox
+fullnameOverride: "es-sandbox"
 
 istio:
   enabled: false   # sandbox has no Istio — plain HTTP on port 9200

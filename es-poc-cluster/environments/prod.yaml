@@ -10,6 +10,7 @@
 #     --from-literal=AD_BIND_PASSWORD=<vault-sourced-password> -n dia-es-poc
 
 clusterName: es-prod
+fullnameOverride: "es-prod"
 
 istio:
   enabled: true   # Istio handles HTTP TLS (9200); cert-manager handles transport TLS (9300)
