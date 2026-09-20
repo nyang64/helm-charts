@@ -10,6 +10,34 @@ Retrieve this runbook any time:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 POST-INSTALL RUNBOOK
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{{- if .Values.istio.gateway.hostname }}
+
+PRE-REQUISITE — TLS secret for the Istio ingress gateway (platform team)
+─────────────────────────────────────────────────────────────────────────
+  The Gateway CRD references a TLS secret in the istio-system namespace.
+  This must be created BEFORE the gateway will serve external HTTPS traffic.
+  It is out of scope for this chart — coordinate with your platform team.
+
+  Option A — from an existing cert/key pair:
+  kubectl create secret tls {{ .Values.istio.gateway.tls.credentialName }} \
+    --cert=tls.crt --key=tls.key \
+    -n istio-system
+
+  Option B — via cert-manager (targeting istio-system):
+  kubectl apply -f - <<EOF
+  apiVersion: cert-manager.io/v1
+  kind: Certificate
+  metadata:
+    name: {{ .Values.istio.gateway.tls.credentialName }}
+    namespace: istio-system
+  spec:
+    secretName: {{ .Values.istio.gateway.tls.credentialName }}
+    dnsNames: ["{{ .Values.istio.gateway.hostname }}"]
+    issuerRef:
+      name: <your-cluster-issuer>
+      kind: ClusterIssuer
+  EOF
+{{- end }}
 
 STEP 1 — Wait for all pods to be ready
 ──────────────────────────────────────
