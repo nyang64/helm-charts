@@ -10,3 +10,7 @@ not at Elasticsearch startup time inside the cluster.
 {{- if and .Values.ad.enabled (not .Values.security.enabled) }}
 {{- fail "Invalid configuration: ad.enabled=true requires security.enabled=true. Active Directory authentication cannot function without xpack security." }}
 {{- end }}
+
+{{- if and .Values.istio.enabled .Values.istio.gateway.hostname (eq .Values.istio.gateway.tls.mode "SIMPLE") (not .Values.istio.gateway.tls.credentialName) }}
+{{- fail "Invalid configuration: istio.gateway.tls.mode=SIMPLE requires istio.gateway.tls.credentialName (name of the TLS secret in the istio-system namespace)." }}
+{{- end }}

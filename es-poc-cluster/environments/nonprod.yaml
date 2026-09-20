@@ -7,6 +7,13 @@ clusterName: es-nonprod
 
 istio:
   enabled: true   # Istio handles HTTP TLS (9200); cert-manager handles transport TLS (9300)
+  gateway:
+    selector:
+      istio: ingressgateway   # adjust if your cluster uses a different gateway pod label
+    hostname: "es-nonprod.your-corp.com"
+    tls:
+      mode: SIMPLE
+      credentialName: "es-nonprod-gateway-tls"   # TLS secret must exist in istio-system namespace
 
 sysctl:
   enabled: true

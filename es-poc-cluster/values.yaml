@@ -96,6 +96,23 @@ ingest:
 # When disabled: all TLS is managed by cert-manager (or none if tls.enabled=false).
 istio:
   enabled: false
+  gateway:
+    # selector must match the labels on the shared Istio ingress gateway pod.
+    # Verify with: kubectl get pods -n istio-system --show-labels | grep gateway
+    selector:
+      istio: ingressgateway
+    # hostname: external FQDN for this ES cluster. When set, a Gateway CRD and VirtualService
+    # are deployed. Leave empty to skip external access (mesh-internal only).
+    hostname: ""
+    tls:
+      # SIMPLE: gateway terminates TLS, forwards plain HTTP to ES pods (recommended).
+      # PASSTHROUGH: not supported — ES HTTP TLS is disabled when istio.enabled=true.
+      mode: SIMPLE
+      # credentialName: K8s secret in the istio-system namespace holding the TLS cert.
+      # Required when mode=SIMPLE. Create with:
+      #   kubectl create secret tls <name> --cert=tls.crt --key=tls.key -n istio-system
+      # or via a cert-manager Certificate resource targeting the istio-system namespace.
+      credentialName: ""
 
 tls:
   enabled: true

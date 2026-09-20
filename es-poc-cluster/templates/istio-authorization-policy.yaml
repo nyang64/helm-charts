@@ -30,4 +30,13 @@ spec:
       to:
         - operation:
             ports: ["9200"]
+    {{- if .Values.istio.gateway.hostname }}
+    # Istio ingress gateway (istio-system namespace) — external traffic via Gateway + VirtualService
+    - from:
+        - source:
+            namespaces: ["istio-system"]
+      to:
+        - operation:
+            ports: ["9200"]
+    {{- end }}
 {{- end }}

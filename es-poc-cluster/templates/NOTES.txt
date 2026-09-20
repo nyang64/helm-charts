@@ -16,11 +16,18 @@ STEP 1 — Wait for all pods to be ready
   kubectl get pods -n {{ .Release.Namespace }} -w
 
 
-STEP 2 — Port-forward and set environment variables
-─────────────────────────────────────────────────────
+STEP 2 — Connect to the cluster
+────────────────────────────────
+{{- if .Values.istio.gateway.hostname }}
+  External URL (via Istio Gateway — no port-forward needed):
+  export ES_URL=https://{{ .Values.istio.gateway.hostname }}
+
+  Or port-forward for local testing:
+{{- else }}
+  Port-forward (no external hostname configured):
+{{- end }}
   kubectl port-forward svc/{{ include "es-poc-cluster.fullname" . }}-ingest \
     9200:9200 -n {{ .Release.Namespace }}
-
   export ES_URL={{ include "es-poc-cluster.httpScheme" . }}://localhost:9200
 
   {{- if .Values.elasticPassword.existingSecret }}
