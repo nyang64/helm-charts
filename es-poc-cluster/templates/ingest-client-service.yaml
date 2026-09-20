@@ -10,9 +10,6 @@ spec:
     {{- include "es-poc-cluster.selectorLabels" . | nindent 4 }}
     role: ingest
   ports:
-    - name: transport
-      port: 9300
-      targetPort: 9300
     - name: {{ include "es-poc-cluster.httpScheme" . }}
       port: 9200
       targetPort: 9200

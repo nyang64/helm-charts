@@ -135,9 +135,12 @@ STEP {{ if .Values.ad.enabled }}4{{ else }}3{{ end }} — Create an application 
 {{ if .Values.ingest.mlEnabled -}}
 STEP {{ if .Values.ad.enabled }}5{{ else }}4{{ end }} — Load the embedding model ({{ .Values.ml.modelId }})
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────
-  Apply the model-loader Job (runs once; retries up to 5 times if ES is not ready):
+  Apply the model-loader Job (runs once; retries up to 5 times if ES is not ready).
+  ml.installJob=true is required — the Job is off by default to prevent it running
+  before the cluster is healthy:
   kubectl apply -f <(helm template {{ .Release.Name }} . \
-    --show-only templates/model-loader-job.yaml) \
+    --show-only templates/model-loader-job.yaml \
+    --set ml.installJob=true) \
     -n {{ .Release.Namespace }}
 
   Watch progress:

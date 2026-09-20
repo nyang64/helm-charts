@@ -30,7 +30,7 @@ data:
 
     {{- if and .Values.ad.enabled .Values.security.enabled }}
     xpack.security.authc.realms.active_directory.ad1:
-      order: 0
+      order: 2
       domain_name: {{ .Values.ad.domainName | quote }}
       url: {{ .Values.ad.url | quote }}
       bind_dn: {{ .Values.ad.bindDn | quote }}

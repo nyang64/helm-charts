@@ -1,4 +1,4 @@
-{{- if .Values.ingest.mlEnabled }}
+{{- if and .Values.ingest.mlEnabled .Values.ml.installJob }}
 # Standalone Job — NOT a Helm hook. Apply manually after the cluster is healthy:
 #
 #   kubectl apply -f <(helm template es-poc-cluster . \

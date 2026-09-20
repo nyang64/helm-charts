@@ -165,6 +165,11 @@ pdb:
 # BAAI/bge-m3                                1024  570 MB  MIT         Multilingual; dense+sparse+colbert in one model
 #
 ml:
+  # installJob: controls whether the model-loader Job is created during helm install/upgrade.
+  # Default false — the cluster must be healthy before the Job runs or it will exhaust retries.
+  # Apply manually after STEP 1 (pods ready) using the command in the NOTES runbook, which
+  # passes --set ml.installJob=true to render the Job on demand.
+  installJob: false
   modelId: "BAAI/bge-base-en-v1.5"   # HuggingFace model ID to load
   taskType: "text_embedding"
   # hubUrl: override to point at an internal HuggingFace mirror for air-gapped clusters.
