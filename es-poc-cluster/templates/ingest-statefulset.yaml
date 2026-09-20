@@ -19,6 +19,12 @@ spec:
       labels:
         {{- include "es-poc-cluster.selectorLabels" . | nindent 8 }}
         role: ingest
+      {{- if .Values.istio.enabled }}
+      annotations:
+        sidecar.istio.io/inject: "true"
+        traffic.sidecar.istio.io/excludeInboundPorts: "9300"
+        traffic.sidecar.istio.io/excludeOutboundPorts: "9300"
+      {{- end }}
     spec:
       serviceAccountName: {{ include "es-poc-cluster.serviceAccountName" . }}
       automountServiceAccountToken: false
@@ -48,7 +54,7 @@ spec:
               drop:
                 - ALL
           ports:
-            - name: {{ if .Values.tls.enabled }}https{{ else }}http{{ end }}
+            - name: {{ include "es-poc-cluster.httpScheme" . }}
               containerPort: 9200
             - name: transport
               containerPort: 9300
@@ -78,7 +84,7 @@ spec:
               command:
                 - sh
                 - -c
-                - 'curl -sf -k -u "elastic:${ELASTIC_PASSWORD}" {{ if .Values.tls.enabled }}https{{ else }}http{{ end }}://localhost:9200/_cluster/health'
+                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }} -u "elastic:${ELASTIC_PASSWORD}" {{ include "es-poc-cluster.httpScheme" . }}://localhost:9200/_cluster/health'
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
@@ -88,7 +94,7 @@ spec:
               command:
                 - sh
                 - -c
-                - 'curl -sf -k -u "elastic:${ELASTIC_PASSWORD}" "{{ if .Values.tls.enabled }}https{{ else }}http{{ end }}://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"'
+                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }} -u "elastic:${ELASTIC_PASSWORD}" "{{ include "es-poc-cluster.httpScheme" . }}://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"'
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}

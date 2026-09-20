@@ -45,7 +45,7 @@ spec:
           command:
             - eland_import_hub_model
             - --url
-            - "{{ if .Values.tls.enabled }}https{{ else }}http{{ end }}://{{ include "es-poc-cluster.fullname" . }}-ingest:9200"
+            - "{{ include "es-poc-cluster.httpScheme" . }}://{{ include "es-poc-cluster.fullname" . }}-ingest:9200"
             - --es-username
             - elastic
             - --es-password
@@ -54,7 +54,7 @@ spec:
             - {{ .Values.ml.modelId | quote }}
             - --task-type
             - {{ .Values.ml.taskType | quote }}
-            {{- if .Values.ml.insecure }}
+            {{- if and .Values.ml.insecure .Values.tls.enabled (not .Values.istio.enabled) }}
             - --insecure
             {{- end }}
             - --start

@@ -93,6 +93,15 @@ affinity:
 {{- end }}
 
 {{/*
+HTTP scheme for ES port 9200.
+When Istio is enabled, Envoy handles TLS on 9200 — ES listens plain HTTP internally.
+When Istio is disabled, scheme follows tls.enabled.
+*/}}
+{{- define "es-poc-cluster.httpScheme" -}}
+{{- if or .Values.istio.enabled (not .Values.tls.enabled) -}}http{{- else -}}https{{- end -}}
+{{- end }}
+
+{{/*
 Generate comma-separated list of master pod names for cluster.initial_master_nodes
 */}}
 {{- define "es-poc-cluster.masterNodes" -}}

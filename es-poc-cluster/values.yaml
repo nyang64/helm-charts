@@ -87,6 +87,16 @@ ingest:
     size: "10Gi"
     storageClassName: ""
 
+# Istio service mesh integration.
+# When enabled:
+#   - HTTP TLS (port 9200) is handled by Envoy mTLS — ES listens plain HTTP internally
+#   - Transport TLS (port 9300) stays with cert-manager — ES uses it for node authentication
+#   - PeerAuthentication (STRICT mTLS) and AuthorizationPolicy are deployed
+#   - Port 9300 is excluded from Istio interception via pod annotations
+# When disabled: all TLS is managed by cert-manager (or none if tls.enabled=false).
+istio:
+  enabled: false
+
 tls:
   enabled: true
   secretName: "es-poc-tls"

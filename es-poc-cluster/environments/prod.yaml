@@ -11,6 +11,9 @@
 
 clusterName: es-prod
 
+istio:
+  enabled: true   # Istio handles HTTP TLS (9200); cert-manager handles transport TLS (9300)
+
 sysctl:
   enabled: true
 

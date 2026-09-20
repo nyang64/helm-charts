@@ -13,6 +13,6 @@ spec:
     - name: transport
       port: 9300
       targetPort: 9300
-    - name: {{ if .Values.tls.enabled }}https{{ else }}http{{ end }}
+    - name: {{ include "es-poc-cluster.httpScheme" . }}
       port: 9200
       targetPort: 9200

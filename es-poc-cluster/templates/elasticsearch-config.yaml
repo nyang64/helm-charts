@@ -17,10 +17,12 @@ data:
     xpack.security.transport.ssl.key: /usr/share/elasticsearch/config/certs/tls.key
     xpack.security.transport.ssl.certificate_authorities: /usr/share/elasticsearch/config/certs/ca.crt
     xpack.security.transport.ssl.verification_mode: certificate
+    {{- if not .Values.istio.enabled }}
     xpack.security.http.ssl.enabled: true
     xpack.security.http.ssl.certificate: /usr/share/elasticsearch/config/certs/tls.crt
     xpack.security.http.ssl.key: /usr/share/elasticsearch/config/certs/tls.key
     xpack.security.http.ssl.certificate_authorities: /usr/share/elasticsearch/config/certs/ca.crt
+    {{- end }}
     {{- end }}
     {{- else }}
     xpack.security.enabled: false

@@ -3,8 +3,8 @@ Validate that incompatible value combinations are caught at template render time
 not at Elasticsearch startup time inside the cluster.
 */}}
 
-{{- if and .Values.security.enabled (not .Values.tls.enabled) }}
-{{- fail "Invalid configuration: security.enabled=true requires tls.enabled=true. ES 8.x mandates transport TLS on all multi-node clusters when security is enabled. Either set tls.enabled=true (recommended) or set security.enabled=false (dev/test only)." }}
+{{- if and .Values.security.enabled (not .Values.tls.enabled) (not .Values.istio.enabled) }}
+{{- fail "Invalid configuration: security.enabled=true requires either tls.enabled=true (cert-manager manages certs) or istio.enabled=true (Istio handles HTTP TLS; transport TLS still needs tls.enabled=true). Set security.enabled=false only for isolated dev/test." }}
 {{- end }}
 
 {{- if and .Values.ad.enabled (not .Values.security.enabled) }}

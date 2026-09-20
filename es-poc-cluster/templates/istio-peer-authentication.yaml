@@ -1,0 +1,20 @@
+{{- if .Values.istio.enabled }}
+# Enforces strict mTLS between all ES pods via Istio.
+# Port 9300 (ES transport) is excluded — ES manages its own TLS there for node authentication.
+# Port 9200 (HTTP) is handled by Istio mTLS; ES listens plain HTTP internally.
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+  mtls:
+    mode: STRICT
+  portLevelMtls:
+    9300:
+      mode: DISABLE   # ES handles TLS on transport port for cluster membership auth
+{{- end }}

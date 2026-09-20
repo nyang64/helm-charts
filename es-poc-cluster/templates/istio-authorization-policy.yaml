@@ -1,0 +1,33 @@
+{{- if .Values.istio.enabled }}
+# Controls which workloads may reach ES pods.
+# Rule 1: ES pods (same ServiceAccount) → full access on 9200 + 9300
+# Rule 2: Any workload in the same namespace → port 9200 only (client/app traffic)
+# Extend Rule 2 with additional namespaces if your app pods are deployed elsewhere.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+  action: ALLOW
+  rules:
+    # ES pods talk to each other — transport (9300) and internal HTTP (9200)
+    - from:
+        - source:
+            principals:
+              - "cluster.local/ns/{{ .Release.Namespace }}/sa/{{ include "es-poc-cluster.serviceAccountName" . }}"
+      to:
+        - operation:
+            ports: ["9200", "9300"]
+    # App pods and the model-loader Job in the same namespace — HTTP only
+    - from:
+        - source:
+            namespaces: ["{{ .Release.Namespace }}"]
+      to:
+        - operation:
+            ports: ["9200"]
+{{- end }}

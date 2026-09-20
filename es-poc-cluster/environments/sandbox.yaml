@@ -4,6 +4,9 @@
 
 clusterName: es-sandbox
 
+istio:
+  enabled: false   # sandbox has no Istio — plain HTTP on port 9200
+
 # Disable privileged sysctl init container — set vm.max_map_count on the node instead.
 sysctl:
   enabled: false

@@ -21,7 +21,7 @@ STEP 2 — Port-forward and set environment variables
   kubectl port-forward svc/{{ include "es-poc-cluster.fullname" . }}-ingest \
     9200:9200 -n {{ .Release.Namespace }}
 
-  export ES_URL={{ if .Values.tls.enabled }}https{{ else }}http{{ end }}://localhost:9200
+  export ES_URL={{ include "es-poc-cluster.httpScheme" . }}://localhost:9200
 
   {{- if .Values.elasticPassword.existingSecret }}
   export ELASTIC_PASSWORD=$(kubectl get secret {{ .Values.elasticPassword.existingSecret }} \
