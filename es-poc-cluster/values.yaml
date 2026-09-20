@@ -139,6 +139,9 @@ pdb:
   data:
     enabled: true
     minAvailable: 1
+  ingest:
+    enabled: true
+    minAvailable: 1   # always keep at least 1 ingest pod -- it is the sole client entry point
 
 # ML model loader -- standalone Job applied manually after the cluster is healthy.
 # Usage (after helm install):

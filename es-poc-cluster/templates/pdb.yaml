@@ -28,3 +28,18 @@ spec:
       {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
       role: data
 {{- end }}
+{{- if .Values.pdb.ingest.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-ingest
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ min .Values.pdb.ingest.minAvailable (int .Values.ingest.replicas) }}
+  selector:
+    matchLabels:
+      {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+      role: ingest
+{{- end }}

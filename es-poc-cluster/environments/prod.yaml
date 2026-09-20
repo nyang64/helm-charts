@@ -109,6 +109,9 @@ pdb:
   data:
     enabled: true
     minAvailable: 8   # tolerates 2 simultaneous data node disruptions out of 10
+  ingest:
+    enabled: true
+    minAvailable: 2   # keep 2 of 3 ingest pods; model reload on restart takes time
 
 ad:
   enabled: true

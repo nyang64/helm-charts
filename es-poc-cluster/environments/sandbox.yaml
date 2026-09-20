@@ -81,6 +81,8 @@ pdb:
     enabled: false   # 1 replica -- PDB would block all voluntary disruptions
   data:
     enabled: false
+  ingest:
+    enabled: false   # 1 replica -- PDB would block all voluntary disruptions
 
 ad:
   enabled: false

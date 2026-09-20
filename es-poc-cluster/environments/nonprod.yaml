@@ -99,6 +99,9 @@ pdb:
   data:
     enabled: true
     minAvailable: 3   # tolerates loss of 2 out of 5 data pods
+  ingest:
+    enabled: true
+    minAvailable: 1   # keep 1 of 2 ingest pods available at all times
 
 ad:
   enabled: true
