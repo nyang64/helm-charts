@@ -175,6 +175,12 @@
         }
       }
     },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
     "sysctl": {
       "type": "object",
       "properties": {

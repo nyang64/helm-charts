@@ -46,3 +46,47 @@ not at Elasticsearch startup time inside the cluster.
 {{- if and .Values.jwt.enabled (eq .Values.jwt.clientAuthentication "shared_secret") }}
 {{- fail "Invalid configuration: jwt.clientAuthentication=shared_secret requires provisioning the shared secret into the ES keystore, which this chart does not automate. Set clientAuthentication=none or manually run: kubectl exec <pod> -- elasticsearch-keystore add xpack.security.authc.realms.jwt.jwt1.client_authentication.shared_secret" }}
 {{- end }}
+
+{{- if and .Values.jwt.enabled (not .Values.jwt.principalClaim) }}
+{{- fail "Invalid configuration: jwt.enabled=true requires jwt.principalClaim (the JWT claim used as the Elasticsearch username, e.g. 'sub' or 'email')." }}
+{{- end }}
+
+{{- if and .Values.jwt.enabled (not .Values.jwt.groupsClaim) }}
+{{- fail "Invalid configuration: jwt.enabled=true requires jwt.groupsClaim (the JWT claim containing group memberships for role mapping, e.g. 'groups')." }}
+{{- end }}
+
+{{- if and .Values.jwt.enabled (not .Values.jwt.adminGroup) }}
+{{- fail "Invalid configuration: jwt.enabled=true requires jwt.adminGroup (the JWT groups claim value that maps to the es_admin role)." }}
+{{- end }}
+
+{{- if and .Values.jwt.enabled (not .Values.jwt.dataUserGroup) }}
+{{- fail "Invalid configuration: jwt.enabled=true requires jwt.dataUserGroup (the JWT groups claim value that maps to the es_data_user role)." }}
+{{- end }}
+
+{{/* Lookup-based prereq checks -- these run against a real cluster during helm install/upgrade.
+     During 'helm template' (no cluster access), lookup returns {} and checks are skipped. */}}
+{{- $clusterReachable := lookup "v1" "Namespace" "" "kube-system" }}
+{{- if $clusterReachable }}
+  {{- if .Values.elasticPassword.existingSecret }}
+    {{- $s := lookup "v1" "Secret" .Release.Namespace .Values.elasticPassword.existingSecret }}
+    {{- if not (hasKey $s "metadata") }}
+    {{- fail (printf "Pre-install check: Secret '%s' not found in namespace '%s'. Create it before installing (key: ELASTIC_PASSWORD)." .Values.elasticPassword.existingSecret .Release.Namespace) }}
+    {{- end }}
+  {{- end }}
+  {{- if and .Values.ad.enabled .Values.ad.existingSecret }}
+    {{- $s := lookup "v1" "Secret" .Release.Namespace .Values.ad.existingSecret }}
+    {{- if not (hasKey $s "metadata") }}
+    {{- fail (printf "Pre-install check: Secret '%s' not found in namespace '%s'. Create it before installing (key: AD_BIND_PASSWORD)." .Values.ad.existingSecret .Release.Namespace) }}
+    {{- end }}
+  {{- end }}
+  {{- if .Values.tls.enabled }}
+    {{- if not (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "certificates.cert-manager.io") }}
+    {{- fail "Pre-install check: cert-manager CRDs not found (certificates.cert-manager.io). Install cert-manager before deploying this chart. See Chart.yaml annotations for the required version." }}
+    {{- end }}
+  {{- end }}
+  {{- if .Values.istio.enabled }}
+    {{- if not (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "virtualservices.networking.istio.io") }}
+    {{- fail "Pre-install check: Istio CRDs not found (virtualservices.networking.istio.io). Install Istio before deploying this chart." }}
+    {{- end }}
+  {{- end }}
+{{- end }}

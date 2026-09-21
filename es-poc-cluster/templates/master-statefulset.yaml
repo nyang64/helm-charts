@@ -78,11 +78,13 @@ spec:
             - name: cluster.initial_master_nodes
               value: {{ include "es-poc-cluster.masterNodes" . }}
             {{- end }}
+            {{- if .Values.security.enabled }}
             - name: ELASTIC_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.elasticPassword.existingSecret | default (printf "%s-bootstrap" (include "es-poc-cluster.fullname" .)) }}
                   key: ELASTIC_PASSWORD
+            {{- end }}
             {{- if .Values.ad.enabled }}
             - name: AD_BIND_PASSWORD
               valueFrom:
@@ -97,7 +99,7 @@ spec:
               command:
                 - sh
                 - -c
-                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }} -u "elastic:${ELASTIC_PASSWORD}" {{ include "es-poc-cluster.httpScheme" . }}://localhost:9200/_cluster/health'
+                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }}{{ if .Values.security.enabled }} -u "elastic:${ELASTIC_PASSWORD}"{{ end }} {{ include "es-poc-cluster.httpScheme" . }}://localhost:9200/_cluster/health'
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
@@ -107,7 +109,7 @@ spec:
               command:
                 - sh
                 - -c
-                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }} -u "elastic:${ELASTIC_PASSWORD}" "{{ include "es-poc-cluster.httpScheme" . }}://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"'
+                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }}{{ if .Values.security.enabled }} -u "elastic:${ELASTIC_PASSWORD}"{{ end }} "{{ include "es-poc-cluster.httpScheme" . }}://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"'
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}

@@ -12,6 +12,8 @@ data:
     {{- if .Values.security.enabled }}
     xpack.security.enabled: true
     {{- if .Values.tls.enabled }}
+    # Hot-reload TLS certs when cert-manager rotates the Secret -- no pod restart required.
+    xpack.security.ssl.reload.enabled: true
     xpack.security.transport.ssl.enabled: true
     xpack.security.transport.ssl.certificate: /usr/share/elasticsearch/config/certs/tls.crt
     xpack.security.transport.ssl.key: /usr/share/elasticsearch/config/certs/tls.key

@@ -104,6 +104,21 @@ ingest:
     size: "10Gi"
     storageClassName: ""
 
+# IMPORTANT -- PVC template immutability:
+# StatefulSet volumeClaimTemplates are immutable in Kubernetes. After the initial install:
+#   - Changing storage.size, storage.storageClassName, or accessModes CANNOT be applied via
+#     helm upgrade -- the StatefulSet update will be rejected by the API server.
+#   - To resize PVCs: delete the StatefulSet (cascade=orphan to keep pods), update the PVCs
+#     manually, then re-install the chart.
+#   - To change storage class: full data migration to new PVCs is required.
+# Plan your storage capacity before the first install; treat PVC config as immutable thereafter.
+
+# NetworkPolicy -- controls pod-level ingress/egress.
+# Disable if your cluster manages NetworkPolicies centrally, has a CNI that doesn't support
+# them, or if you need to temporarily bypass for debugging. Re-enable for all production deploys.
+networkPolicy:
+  enabled: true
+
 # Istio service mesh integration.
 # When enabled:
 #   - HTTP TLS (port 9200) is handled by Envoy mTLS -- ES listens plain HTTP internally
