@@ -8,6 +8,7 @@ metadata:
 spec:
   serviceName: {{ include "es-poc-cluster.fullname" . }}-ingest-headless
   replicas: {{ .Values.ingest.replicas }}
+  podManagementPolicy: Parallel
   updateStrategy:
     type: RollingUpdate
   selector:
@@ -118,7 +119,7 @@ spec:
               mountPath: /usr/share/elasticsearch/config/roles.yml
               subPath: roles.yml
               readOnly: true
-            {{- if or .Values.ad.enabled .Values.jwt.enabled }}
+            {{- if .Values.ad.enabled }}
             - name: es-roles
               mountPath: /usr/share/elasticsearch/config/role_mapping.yml
               subPath: role_mapping.yml

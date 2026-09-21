@@ -8,6 +8,10 @@ metadata:
 spec:
   serviceName: {{ include "es-poc-cluster.fullname" . }}-master-headless
   replicas: {{ .Values.master.replicas }}
+  # Parallel so all master pods start simultaneously and can reach quorum for the initial
+  # master election. With the default OrderedReady, pod-1 never starts because pod-0 needs
+  # 2 of 3 nodes to elect a master and pass its readiness probe -- a hard deadlock.
+  podManagementPolicy: Parallel
   updateStrategy:
     type: RollingUpdate
   selector:
@@ -125,7 +129,7 @@ spec:
               mountPath: /usr/share/elasticsearch/config/roles.yml
               subPath: roles.yml
               readOnly: true
-            {{- if or .Values.ad.enabled .Values.jwt.enabled }}
+            {{- if .Values.ad.enabled }}
             - name: es-roles
               mountPath: /usr/share/elasticsearch/config/role_mapping.yml
               subPath: role_mapping.yml

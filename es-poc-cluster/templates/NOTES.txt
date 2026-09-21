@@ -108,6 +108,37 @@ STEP {{ $step }} -- Verify AD integration
 {{- $step = add $step 1 }}
 
 
+STEP {{ $step }} -- Configure JWT role mappings (required before JWT auth works)
+------------------------------------------------------------------------------
+  IMPORTANT: ES does NOT read role_mapping.yml for JWT realms -- that file only
+  applies to LDAP/AD. JWT role mapping MUST be configured via the API (one-time,
+  run as elastic after the cluster is healthy):
+
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
+    -X PUT "$ES_URL/_security/role_mapping/jwt_admin" \
+    -H "Content-Type: application/json" -d '
+    {
+      "roles": ["es_admin"],
+      "enabled": true,
+      "rules": { "field": { "groups": {{ .Values.jwt.adminGroup | quote }} } }
+    }'
+
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
+    -X PUT "$ES_URL/_security/role_mapping/jwt_data_user" \
+    -H "Content-Type: application/json" -d '
+    {
+      "roles": ["es_data_user"],
+      "enabled": true,
+      "rules": { "field": { "groups": {{ .Values.jwt.dataUserGroup | quote }} } }
+    }'
+
+  Verify the mappings were stored:
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
+    "$ES_URL/_security/role_mapping/jwt_admin,jwt_data_user?pretty"
+
+{{- $step = add $step 1 }}
+
+
 STEP {{ $step }} -- Verify JWT authentication
 ---------------------------------------------
   Realm chain: file(0/built-in) -> jwt1(2){{ if .Values.ad.enabled }} -> ad1(3){{ end }} -> native(built-in/last)
@@ -123,21 +154,10 @@ STEP {{ $step }} -- Verify JWT authentication
     -H "Authorization: Bearer $JWT_TOKEN" \
     -H "ES-Client-Authentication: none" \
     "$ES_URL/_security/_authenticate?pretty"
-  # Expected: realm.name = "jwt1", roles = [mapped role from groups claim]
+  # Expected: realm.name = "jwt1", roles = [es_admin or es_data_user]
   # Token must include: iss={{ .Values.jwt.allowedIssuer | quote }},
   #   aud={{ index .Values.jwt.allowedAudiences 0 | default "" | quote }},
   #   {{ .Values.jwt.groupsClaim }}=[{{ .Values.jwt.adminGroup | quote }} or {{ .Values.jwt.dataUserGroup | quote }}]
-
-  Role mapping (role_mapping.yml on disk -- no ES API call needed):
-{{- if .Values.ad.enabled }}
-    es_admin:     AD DN {{ .Values.ad.adminGroupDn | quote }}
-                  JWT group {{ .Values.jwt.adminGroup | quote }}
-    es_data_user: AD DN {{ .Values.ad.dataUserGroupDn | quote }}
-                  JWT group {{ .Values.jwt.dataUserGroup | quote }}
-{{- else }}
-    es_admin:     JWT group {{ .Values.jwt.adminGroup | quote }}
-    es_data_user: JWT group {{ .Values.jwt.dataUserGroup | quote }}
-{{- end }}
 {{- end }}
 
 {{- if .Values.security.enabled }}
