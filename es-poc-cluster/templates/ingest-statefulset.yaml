@@ -19,12 +19,18 @@ spec:
       labels:
         {{- include "es-poc-cluster.selectorLabels" . | nindent 8 }}
         role: ingest
-      {{- if .Values.istio.enabled }}
       annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/elasticsearch-config.yaml") . | sha256sum }}
+        checksum/roles: {{ include (print $.Template.BasePath "/es-roles-configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/bootstrap-secret.yaml") . | sha256sum }}
+        {{- if .Values.ad.enabled }}
+        checksum/ad-secret: {{ include (print $.Template.BasePath "/ad-secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if .Values.istio.enabled }}
         sidecar.istio.io/inject: "true"
         traffic.sidecar.istio.io/excludeInboundPorts: "9300"
         traffic.sidecar.istio.io/excludeOutboundPorts: "9300"
-      {{- end }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "es-poc-cluster.serviceAccountName" . }}
       automountServiceAccountToken: false

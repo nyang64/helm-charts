@@ -30,3 +30,19 @@ not at Elasticsearch startup time inside the cluster.
 {{- if and .Values.istio.enabled .Values.istio.gateway.hostname (eq .Values.istio.gateway.tls.mode "SIMPLE") (not .Values.istio.gateway.tls.credentialName) }}
 {{- fail "Invalid configuration: istio.gateway.tls.mode=SIMPLE requires istio.gateway.tls.credentialName (name of the TLS secret in the istio-system namespace)." }}
 {{- end }}
+
+{{- if and .Values.istio.enabled (eq .Values.istio.gateway.tls.mode "PASSTHROUGH") }}
+{{- fail "Invalid configuration: istio.gateway.tls.mode=PASSTHROUGH is not supported. ES HTTP TLS is disabled when istio.enabled=true -- there is no TLS for the gateway to pass through. Use mode=SIMPLE." }}
+{{- end }}
+
+{{- if and .Values.security.enabled (not .Values.elasticPassword.existingSecret) (eq .Values.elasticPassword.password "changeme") }}
+{{- fail "Invalid configuration: elasticPassword.password is set to the default 'changeme'. Set a strong password or reference a pre-created secret via elasticPassword.existingSecret." }}
+{{- end }}
+
+{{- if and .Values.ad.enabled (not .Values.ad.existingSecret) (not .Values.ad.bindPassword) }}
+{{- fail "Invalid configuration: ad.enabled=true requires either ad.existingSecret (recommended for production) or ad.bindPassword. Without a bind credential ES cannot authenticate against Active Directory." }}
+{{- end }}
+
+{{- if and .Values.jwt.enabled (eq .Values.jwt.clientAuthentication "shared_secret") }}
+{{- fail "Invalid configuration: jwt.clientAuthentication=shared_secret requires provisioning the shared secret into the ES keystore, which this chart does not automate. Set clientAuthentication=none or manually run: kubectl exec <pod> -- elasticsearch-keystore add xpack.security.authc.realms.jwt.jwt1.client_authentication.shared_secret" }}
+{{- end }}

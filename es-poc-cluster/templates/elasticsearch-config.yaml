@@ -31,8 +31,8 @@ data:
     {{- if and .Values.jwt.enabled .Values.security.enabled }}
     xpack.security.authc.realms.jwt.jwt1:
       order: 2
-      token_type: {{ .Values.jwt.tokenType }}
-      client_authentication.type: {{ .Values.jwt.clientAuthentication }}
+      token_type: {{ .Values.jwt.tokenType | quote }}
+      client_authentication.type: {{ .Values.jwt.clientAuthentication | quote }}
       allowed_issuer: {{ .Values.jwt.allowedIssuer | quote }}
       allowed_audiences: {{ .Values.jwt.allowedAudiences | toJson }}
       claims.principal: {{ .Values.jwt.principalClaim | quote }}
@@ -40,6 +40,9 @@ data:
       claims.groups: {{ .Values.jwt.groupsClaim | quote }}
       {{- end }}
       pkc_jwkset_path: {{ .Values.jwt.jwksetPath | quote }}
+      {{- if .Values.jwt.allowedSignatureAlgorithms }}
+      allowed_signature_algorithms: {{ .Values.jwt.allowedSignatureAlgorithms | toJson }}
+      {{- end }}
     {{- end }}
     {{- if and .Values.ad.enabled .Values.security.enabled }}
     xpack.security.authc.realms.active_directory.ad1:
@@ -52,4 +55,7 @@ data:
         base_dn: {{ .Values.ad.userSearchBaseDn | quote }}
       group_search:
         base_dn: {{ .Values.ad.groupSearchBaseDn | quote }}
+      {{- if .Values.ad.sslCertificateAuthorities }}
+      ssl.certificate_authorities: {{ .Values.ad.sslCertificateAuthorities | quote }}
+      {{- end }}
     {{- end }}

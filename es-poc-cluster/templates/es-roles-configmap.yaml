@@ -22,6 +22,7 @@ data:
           privileges:
             - read
             - write
+            - create_index   # write does not include index creation; apps that auto-create indices need this
 
   {{- if or .Values.ad.enabled .Values.jwt.enabled }}
   role_mapping.yml: |

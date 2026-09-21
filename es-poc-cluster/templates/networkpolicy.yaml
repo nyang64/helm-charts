@@ -53,3 +53,12 @@ spec:
         - port: 443
           protocol: TCP
     {{- end }}
+    {{- if .Values.istio.enabled }}
+    # istiod control-plane egress -- required for Envoy sidecar XDS config and mTLS cert issuance.
+    # Without this rule the sidecar cannot bootstrap and the pod never reaches Ready.
+    - ports:
+        - port: 15012
+          protocol: TCP
+        - port: 15010
+          protocol: TCP
+    {{- end }}

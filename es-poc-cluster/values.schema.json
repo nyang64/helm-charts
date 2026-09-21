@@ -1,0 +1,199 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "es-poc-cluster values",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "clusterName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Elasticsearch cluster.name"
+    },
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "tls": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "secretName": { "type": "string" },
+        "issuerName": { "type": "string" },
+        "duration": { "type": "string", "pattern": "^[0-9]+h$" },
+        "renewBefore": { "type": "string", "pattern": "^[0-9]+h$" }
+      }
+    },
+    "elasticPassword": {
+      "type": "object",
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "password": { "type": "string" }
+      }
+    },
+    "master": {
+      "type": "object",
+      "required": ["replicas"],
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 1 },
+        "heapSize": { "type": "string", "pattern": "^[0-9]+(m|g)$" },
+        "antiAffinity": { "type": "string", "enum": ["required", "preferred", "disabled"] },
+        "bootstrapped": { "type": "boolean" }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": ["replicas"],
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 1 },
+        "heapSize": { "type": "string", "pattern": "^[0-9]+(m|g)$" },
+        "antiAffinity": { "type": "string", "enum": ["required", "preferred", "disabled"] }
+      }
+    },
+    "ingest": {
+      "type": "object",
+      "required": ["replicas"],
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 1 },
+        "heapSize": { "type": "string", "pattern": "^[0-9]+(m|g)$" },
+        "antiAffinity": { "type": "string", "enum": ["required", "preferred", "disabled"] },
+        "mlEnabled": { "type": "boolean" }
+      }
+    },
+    "istio": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "allowedNamespaces": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "gateway": {
+          "type": "object",
+          "properties": {
+            "hostname": { "type": "string" },
+            "tls": {
+              "type": "object",
+              "properties": {
+                "mode": { "type": "string", "enum": ["SIMPLE", "PASSTHROUGH"] },
+                "credentialName": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ad": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "bindPassword": { "type": "string" },
+        "domainName": { "type": "string" },
+        "url": { "type": "string", "pattern": "^ldaps?://" },
+        "bindDn": { "type": "string" },
+        "userSearchBaseDn": { "type": "string" },
+        "groupSearchBaseDn": { "type": "string" },
+        "adminGroupDn": { "type": "string" },
+        "dataUserGroupDn": { "type": "string" },
+        "sslCertificateAuthorities": { "type": "string" }
+      }
+    },
+    "jwt": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "tokenType": { "type": "string", "enum": ["id_token", "access_token"] },
+        "allowedIssuer": { "type": "string" },
+        "allowedAudiences": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "principalClaim": { "type": "string" },
+        "groupsClaim": { "type": "string" },
+        "clientAuthentication": { "type": "string", "enum": ["none", "shared_secret"] },
+        "jwksetPath": { "type": "string" },
+        "adminGroup": { "type": "string" },
+        "dataUserGroup": { "type": "string" },
+        "allowedSignatureAlgorithms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["RS256","RS384","RS512","ES256","ES384","ES512","PS256","PS384","PS512"]
+          }
+        }
+      }
+    },
+    "ml": {
+      "type": "object",
+      "properties": {
+        "installJob": { "type": "boolean" },
+        "modelId": { "type": "string" },
+        "taskType": { "type": "string" },
+        "hubUrl": { "type": "string" },
+        "insecure": { "type": "boolean" },
+        "elandImage": { "type": "string" }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "properties": {
+        "master": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minAvailable": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minAvailable": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "ingest": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minAvailable": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "sysctl": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "automountServiceAccountToken": { "type": "boolean" }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" }
+      }
+    }
+  }
+}

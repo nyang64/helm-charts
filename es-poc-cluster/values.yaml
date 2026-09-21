@@ -3,6 +3,9 @@ clusterName: es-poc-cluster
 
 image:
   repository: docker.elastic.co/elasticsearch/elasticsearch
+  # tag: pin to an exact patch version in production. Mutable tags (e.g. "8.17") mean
+  # `helm upgrade` may silently roll all pods to a newer ES version when nodes pull a fresh image,
+  # potentially causing a rolling upgrade without operator awareness.
   tag: "8.17.7"
   pullPolicy: IfNotPresent
 
@@ -31,6 +34,17 @@ security:
 # Requires privileged pods. Disable if nodes already have this set at node level.
 sysctl:
   enabled: true
+
+# bootstrap.memory_lock (mlockall) is NOT enabled by this chart.
+# To enable it you need ALL of the following simultaneously, which is complex in K8s:
+#   1. ES config: bootstrap.memory_lock: true
+#   2. Container securityContext: capabilities.add: [IPC_LOCK]
+#   3. Pod securityContext or ulimit: memlock unlimited (requires privileged or a custom limit plugin)
+#   4. Node-level OS: must honor RLIMIT_MEMLOCK for the container process
+# In practice, K8s PodSecurityAdmission "restricted" profile blocks IPC_LOCK. Only enable
+# if your cluster permits privileged pods and the node OS is tuned accordingly.
+# Without memory_lock, the OS may swap ES heap pages under memory pressure -- avoid this
+# by setting memory requests == limits (Guaranteed QoS) as done in this chart.
 
 # Master nodes -- control the cluster (elections, metadata)
 # CPU: requests < limits (Burstable QoS) is intentional for ES. CPU throttling slows
@@ -213,6 +227,11 @@ ad:
   groupSearchBaseDn: "OU=Groups,DC=your-corp,DC=com"
   adminGroupDn: "CN=ES-Admins,OU=Groups,DC=your-corp,DC=com"
   dataUserGroupDn: "CN=ES-DataUsers,OU=Groups,DC=your-corp,DC=com"
+  # sslCertificateAuthorities: path to a PEM CA bundle for verifying the AD LDAPS certificate.
+  # Required when the AD server uses a private corporate CA not trusted by the JVM default truststore.
+  # The file must be available inside the ES container at the specified path; mount it as a
+  # Secret volume with a custom initContainer or via your platform's secret injection mechanism.
+  sslCertificateAuthorities: ""   # e.g. "/usr/share/elasticsearch/config/certs/ad-ca.pem"
 
 # JWT/OIDC realm (disabled by default)
 # Enables ES to verify JWT tokens issued by an external IdP (Okta, Azure AD, Keycloak, etc.).
@@ -241,3 +260,8 @@ jwt:
   # They appear in role_mapping.yml alongside AD group DNs when both realms are active.
   adminGroup: "ES-Admins"        # JWT groups claim value -> es_admin role
   dataUserGroup: "ES-DataUsers"  # JWT groups claim value -> es_data_user role
+  # allowedSignatureAlgorithms: restrict which JWS algorithms ES accepts when verifying tokens.
+  # Leave empty to accept all algorithms supported by the configured JWKS (RS256, RS384, RS512,
+  # ES256, ES384, ES512, PS256, PS384, PS512). Restrict when your IdP uses a specific algorithm
+  # and you want to reject tokens signed with weaker algorithms.
+  allowedSignatureAlgorithms: []   # e.g. ["RS256", "ES256"]

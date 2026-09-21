@@ -79,7 +79,7 @@ spec:
             ports: ["9200"]
     {{- end }}
     {{- if .Values.istio.gateway.hostname }}
-    # Rule 5: Istio ingress gateway -- external and separate-Istio-CP cross-cluster traffic
+    # Rule 4: Istio ingress gateway -- external and separate-Istio-CP cross-cluster traffic
     - from:
         - source:
             namespaces: ["istio-system"]

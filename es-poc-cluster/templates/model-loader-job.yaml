@@ -26,6 +26,12 @@ spec:
       labels:
         {{- include "es-poc-cluster.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: model-loader
+      {{- if .Values.istio.enabled }}
+      annotations:
+        # In a STRICT mTLS namespace the Job pod needs an Envoy sidecar to reach ES.
+        # K8s 1.29+ / Istio 1.22+ handle sidecar lifecycle in Jobs correctly (EXIT_ON_HOLD).
+        sidecar.istio.io/inject: "true"
+      {{- end }}
     spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "es-poc-cluster.serviceAccountName" . }}
