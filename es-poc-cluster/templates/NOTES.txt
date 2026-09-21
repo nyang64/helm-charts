@@ -57,7 +57,13 @@ STEP 2 -- Connect to the cluster
   kubectl port-forward svc/{{ include "es-poc-cluster.fullname" . }}-ingest \
     9200:9200 -n {{ .Release.Namespace }}
   export ES_URL={{ include "es-poc-cluster.httpScheme" . }}://localhost:9200
+{{- $step := 2 }}
+{{- $curlAuth := "" }}
+{{- if .Values.security.enabled }}
+{{- $curlAuth = " -u elastic:$ELASTIC_PASSWORD" }}
+{{- end }}
 
+  {{- if .Values.security.enabled }}
   The elastic superuser authenticates via the native realm -- it is always
   available even when AD is unreachable. Use it for all setup steps below.
 
@@ -70,13 +76,11 @@ STEP 2 -- Connect to the cluster
     -n {{ .Release.Namespace }} \
     -o jsonpath='{.data.ELASTIC_PASSWORD}' | base64 -d)
   {{- end }}
+  {{- end }}
 
   Verify cluster health:
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
-    -u elastic:$ELASTIC_PASSWORD \
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     "$ES_URL/_cluster/health?pretty"
-
-{{- $step := 2 }}
 
 {{- if .Values.ad.enabled }}
 {{- $step = add $step 1 }}
@@ -95,8 +99,7 @@ STEP {{ $step }} -- Verify AD integration
   # If AD is unreachable: this returns 401; elastic still returns 200.
 
   To check which roles an AD user would receive without their password:
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
-    -u elastic:$ELASTIC_PASSWORD \
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     -X POST "$ES_URL/_security/user/DOMAIN%5Cyour-ad-username/_has_privileges" \
     -H "Content-Type: application/json" -d '{"index":[{"names":["*"],"privileges":["read"]}]}'
 {{- end }}
@@ -107,7 +110,7 @@ STEP {{ $step }} -- Verify AD integration
 
 STEP {{ $step }} -- Verify JWT authentication
 ---------------------------------------------
-  Realm chain: native(0) -> jwt1(2){{ if .Values.ad.enabled }} -> ad1(3){{ end }}
+  Realm chain: file(0/built-in) -> jwt1(2){{ if .Values.ad.enabled }} -> ad1(3){{ end }} -> native(built-in/last)
   - API gateway / applications: authenticate with Bearer JWT token (jwt1 realm)
 {{- if .Values.ad.enabled }}
   - Human operators / admins: authenticate with AD credentials (DOMAIN\username, ad1 realm)
@@ -137,6 +140,7 @@ STEP {{ $step }} -- Verify JWT authentication
 {{- end }}
 {{- end }}
 
+{{- if .Values.security.enabled }}
 {{- $step = add $step 1 }}
 
 
@@ -147,8 +151,7 @@ STEP {{ $step }} -- Create an application API key
   rotated without changing app configuration.
 
   Create a key scoped to knowledge-base read/write (run as elastic):
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
-    -u elastic:$ELASTIC_PASSWORD \
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     -X POST "$ES_URL/_security/api_key" \
     -H "Content-Type: application/json" -d '
     {
@@ -172,6 +175,7 @@ STEP {{ $step }} -- Create an application API key
 
   Applications set this header on every request -- no username or AD lookup:
   Authorization: ApiKey <base64(id:api_key)>
+{{- end }}
 
 {{ if .Values.ingest.mlEnabled -}}
 {{- $step = add $step 1 }}
@@ -203,8 +207,7 @@ STEP {{ $step }} -- Load the embedding model ({{ .Values.ml.modelId }})
 {{- $step = add $step 1 }}
 STEP {{ $step }} -- Create an inference endpoint
 ------------------------------------------------
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
-    -u elastic:$ELASTIC_PASSWORD \
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     -X PUT "$ES_URL/_inference/text_embedding/{{ .Values.ml.modelId | replace "/" "-" | lower }}" \
     -H "Content-Type: application/json" -d '
     {
@@ -223,8 +226,7 @@ STEP {{ $step }} -- Create an index with semantic_text mapping
   Adjust field names to match your document schema. The body field uses
   semantic_text -- ES automatically chunks and embeds it on every write.
 
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
-    -u elastic:$ELASTIC_PASSWORD \
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     -X PUT "$ES_URL/knowledge-base" \
     -H "Content-Type: application/json" -d '
     {
@@ -244,8 +246,7 @@ STEP {{ $step }} -- Create an index with semantic_text mapping
 STEP {{ $step }} -- Smoke test
 ------------------------------
   Index a document (ES chunks and embeds the body field automatically):
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
-    -u elastic:$ELASTIC_PASSWORD \
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     -X POST "$ES_URL/knowledge-base/_doc" \
     -H "Content-Type: application/json" -d '
     {
@@ -256,8 +257,7 @@ STEP {{ $step }} -- Smoke test
     }'
 
   Wait ~5 seconds for the embedding to complete, then search:
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
-    -u elastic:$ELASTIC_PASSWORD \
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     -X POST "$ES_URL/knowledge-base/_search?pretty" \
     -H "Content-Type: application/json" -d '
     {
@@ -275,8 +275,7 @@ STEP {{ $step }} -- Smoke test
 {{- $step = add $step 1 }}
 STEP {{ $step }} -- Cluster is ready (ingest.mlEnabled=false -- no ML model configured)
 ---------------------------------------------------------------------------------------
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
-    -u elastic:$ELASTIC_PASSWORD \
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     "$ES_URL/_cat/nodes?v"
 
 {{ end -}}

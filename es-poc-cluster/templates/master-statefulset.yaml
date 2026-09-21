@@ -136,6 +136,11 @@ spec:
               mountPath: /usr/share/elasticsearch/config/certs
               readOnly: true
             {{- end }}
+            {{- if .Values.ad.sslCertificateAuthoritiesSecret }}
+            - name: ad-ca
+              mountPath: /usr/share/elasticsearch/config/certs/ad-ca
+              readOnly: true
+            {{- end }}
       volumes:
         - name: es-config
           configMap:
@@ -147,6 +152,11 @@ spec:
         - name: tls-certs
           secret:
             secretName: {{ .Values.tls.secretName }}
+        {{- end }}
+        {{- if .Values.ad.sslCertificateAuthoritiesSecret }}
+        - name: ad-ca
+          secret:
+            secretName: {{ .Values.ad.sslCertificateAuthoritiesSecret }}
         {{- end }}
   volumeClaimTemplates:
     - metadata:

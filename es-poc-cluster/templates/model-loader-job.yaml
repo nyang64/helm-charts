@@ -29,8 +29,13 @@ spec:
       {{- if .Values.istio.enabled }}
       annotations:
         # In a STRICT mTLS namespace the Job pod needs an Envoy sidecar to reach ES.
-        # K8s 1.29+ / Istio 1.22+ handle sidecar lifecycle in Jobs correctly (EXIT_ON_HOLD).
         sidecar.istio.io/inject: "true"
+        # holdApplicationUntilProxyStarts ensures the Envoy sidecar is ready before eland
+        # starts -- without this, the first ES request may fail while the proxy is still
+        # initialising. The shell wrapper below calls quitquitquit after eland exits to
+        # shut down the sidecar (required on Istio < 1.22 / K8s < 1.29 which lack native
+        # sidecar lifecycle support for Jobs).
+        proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
       {{- end }}
     spec:
       restartPolicy: OnFailure
@@ -51,23 +56,25 @@ spec:
               drop:
                 - ALL
           command:
-            - eland_import_hub_model
-            - --url
-            - "{{ include "es-poc-cluster.httpScheme" . }}://{{ include "es-poc-cluster.fullname" . }}-ingest:9200"
-            {{- if .Values.security.enabled }}
-            - --es-username
-            - elastic
-            - --es-password
-            - "$(ELASTIC_PASSWORD)"
-            {{- end }}
-            - --hub-model-id
-            - {{ .Values.ml.modelId | quote }}
-            - --task-type
-            - {{ .Values.ml.taskType | quote }}
-            {{- if and .Values.ml.insecure .Values.tls.enabled (not .Values.istio.enabled) }}
-            - --insecure
-            {{- end }}
-            - --start
+            - /bin/sh
+            - -c
+            - |
+              eland_import_hub_model \
+                --url "{{ include "es-poc-cluster.httpScheme" . }}://{{ include "es-poc-cluster.fullname" . }}-ingest:9200" \
+                {{- if .Values.security.enabled }}
+                --es-username elastic --es-password "${ELASTIC_PASSWORD}" \
+                {{- end }}
+                --hub-model-id {{ .Values.ml.modelId | quote }} \
+                --task-type {{ .Values.ml.taskType | quote }} \
+                {{- if and .Values.ml.insecure .Values.tls.enabled (not .Values.istio.enabled) }}
+                --insecure \
+                {{- end }}
+                --start
+              EXIT=$?
+              {{- if .Values.istio.enabled }}
+              curl -fsS -X POST http://localhost:15020/quitquitquit || true
+              {{- end }}
+              exit $EXIT
           env:
             {{- if .Values.security.enabled }}
             - name: ELASTIC_PASSWORD

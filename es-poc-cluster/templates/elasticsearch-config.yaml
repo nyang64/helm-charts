@@ -12,7 +12,11 @@ data:
     {{- if .Values.security.enabled }}
     xpack.security.enabled: true
     {{- if .Values.tls.enabled }}
-    # Hot-reload TLS certs when cert-manager rotates the Secret -- no pod restart required.
+    # xpack.security.ssl.reload.enabled: ES watches cert files on disk and hot-reloads them
+    # when cert-manager rotates the Secret, without requiring a pod restart.
+    # Documented in ES 8.x: https://www.elastic.co/guide/en/elasticsearch/reference/8.17/security-settings.html
+    # If this causes startup errors on your ES version, remove it and use the reload API instead:
+    #   POST /_nodes/reload_secure_settings
     xpack.security.ssl.reload.enabled: true
     xpack.security.transport.ssl.enabled: true
     xpack.security.transport.ssl.certificate: /usr/share/elasticsearch/config/certs/tls.crt
@@ -57,7 +61,9 @@ data:
         base_dn: {{ .Values.ad.userSearchBaseDn | quote }}
       group_search:
         base_dn: {{ .Values.ad.groupSearchBaseDn | quote }}
-      {{- if .Values.ad.sslCertificateAuthorities }}
+      {{- if .Values.ad.sslCertificateAuthoritiesSecret }}
+      ssl.certificate_authorities: "/usr/share/elasticsearch/config/certs/ad-ca/ca.crt"
+      {{- else if .Values.ad.sslCertificateAuthorities }}
       ssl.certificate_authorities: {{ .Values.ad.sslCertificateAuthorities | quote }}
       {{- end }}
     {{- end }}

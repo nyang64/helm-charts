@@ -7,6 +7,10 @@ not at Elasticsearch startup time inside the cluster.
 {{- fail "Invalid configuration: security.enabled=true requires tls.enabled=true. ES transport TLS (port 9300) needs cert-manager certificates regardless of istio.enabled -- Istio only handles HTTP TLS (port 9200). Set security.enabled=false only for isolated dev/test." }}
 {{- end }}
 
+{{- if and (not .Values.security.enabled) .Values.tls.enabled }}
+{{- fail "Invalid configuration: tls.enabled=true requires security.enabled=true. ES does not configure any TLS when xpack.security is off, so httpScheme would resolve to https against a plain-HTTP listener. Set tls.enabled=false for security-off deployments." }}
+{{- end }}
+
 {{- if and .Values.ad.enabled (not .Values.security.enabled) }}
 {{- fail "Invalid configuration: ad.enabled=true requires security.enabled=true. Active Directory authentication cannot function without xpack security." }}
 {{- end }}
@@ -35,8 +39,8 @@ not at Elasticsearch startup time inside the cluster.
 {{- fail "Invalid configuration: istio.gateway.tls.mode=PASSTHROUGH is not supported. ES HTTP TLS is disabled when istio.enabled=true -- there is no TLS for the gateway to pass through. Use mode=SIMPLE." }}
 {{- end }}
 
-{{- if and .Values.security.enabled (not .Values.elasticPassword.existingSecret) (eq .Values.elasticPassword.password "changeme") }}
-{{- fail "Invalid configuration: elasticPassword.password is set to the default 'changeme'. Set a strong password or reference a pre-created secret via elasticPassword.existingSecret." }}
+{{- if and .Values.security.enabled (not .Values.elasticPassword.existingSecret) (hasPrefix "changeme" .Values.elasticPassword.password) }}
+{{- fail "Invalid configuration: elasticPassword.password starts with 'changeme'. Set a strong unique password or reference a pre-created secret via elasticPassword.existingSecret." }}
 {{- end }}
 
 {{- if and .Values.ad.enabled (not .Values.ad.existingSecret) (not .Values.ad.bindPassword) }}
@@ -71,12 +75,16 @@ not at Elasticsearch startup time inside the cluster.
     {{- $s := lookup "v1" "Secret" .Release.Namespace .Values.elasticPassword.existingSecret }}
     {{- if not (hasKey $s "metadata") }}
     {{- fail (printf "Pre-install check: Secret '%s' not found in namespace '%s'. Create it before installing (key: ELASTIC_PASSWORD)." .Values.elasticPassword.existingSecret .Release.Namespace) }}
+    {{- else if not (hasKey $s.data "ELASTIC_PASSWORD") }}
+    {{- fail (printf "Pre-install check: Secret '%s' exists but is missing required key 'ELASTIC_PASSWORD'." .Values.elasticPassword.existingSecret) }}
     {{- end }}
   {{- end }}
   {{- if and .Values.ad.enabled .Values.ad.existingSecret }}
     {{- $s := lookup "v1" "Secret" .Release.Namespace .Values.ad.existingSecret }}
     {{- if not (hasKey $s "metadata") }}
     {{- fail (printf "Pre-install check: Secret '%s' not found in namespace '%s'. Create it before installing (key: AD_BIND_PASSWORD)." .Values.ad.existingSecret .Release.Namespace) }}
+    {{- else if not (hasKey $s.data "AD_BIND_PASSWORD") }}
+    {{- fail (printf "Pre-install check: Secret '%s' exists but is missing required key 'AD_BIND_PASSWORD'." .Values.ad.existingSecret) }}
     {{- end }}
   {{- end }}
   {{- if .Values.tls.enabled }}
@@ -85,8 +93,11 @@ not at Elasticsearch startup time inside the cluster.
     {{- end }}
   {{- end }}
   {{- if .Values.istio.enabled }}
-    {{- if not (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "virtualservices.networking.istio.io") }}
-    {{- fail "Pre-install check: Istio CRDs not found (virtualservices.networking.istio.io). Install Istio before deploying this chart." }}
+    {{- $istioCRDs := list "virtualservices.networking.istio.io" "gateways.networking.istio.io" "authorizationpolicies.security.istio.io" "peerauthentications.security.istio.io" }}
+    {{- range $istioCRDs }}
+      {{- if not (lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" .) }}
+      {{- fail (printf "Pre-install check: Istio CRD '%s' not found. Install Istio before deploying this chart." .) }}
+      {{- end }}
     {{- end }}
   {{- end }}
 {{- end }}

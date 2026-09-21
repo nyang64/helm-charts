@@ -230,7 +230,7 @@ ml:
 
 # Active Directory integration (disabled by default)
 # When enabled, users authenticate with DOMAIN\username credentials.
-# Order 3 in the realm chain: native(0) -> jwt(2) -> ad(3).
+# Order 3 in the realm chain: file(0/built-in) -> jwt1(2) -> ad1(3) -> native(built-in/last).
 ad:
   enabled: false
   existingSecret: ""          # name of pre-existing K8s secret -- if set, chart does not create one
@@ -242,17 +242,21 @@ ad:
   groupSearchBaseDn: "OU=Groups,DC=your-corp,DC=com"
   adminGroupDn: "CN=ES-Admins,OU=Groups,DC=your-corp,DC=com"
   dataUserGroupDn: "CN=ES-DataUsers,OU=Groups,DC=your-corp,DC=com"
-  # sslCertificateAuthorities: path to a PEM CA bundle for verifying the AD LDAPS certificate.
-  # Required when the AD server uses a private corporate CA not trusted by the JVM default truststore.
-  # The file must be available inside the ES container at the specified path; mount it as a
-  # Secret volume with a custom initContainer or via your platform's secret injection mechanism.
-  sslCertificateAuthorities: ""   # e.g. "/usr/share/elasticsearch/config/certs/ad-ca.pem"
+  # sslCertificateAuthoritiesSecret: name of a K8s Secret whose 'ca.crt' key contains the PEM
+  # CA bundle for verifying the AD LDAPS certificate. Required when the AD server uses a private
+  # corporate CA not trusted by the JVM default truststore. When set, the chart mounts the Secret
+  # at /usr/share/elasticsearch/config/certs/ad-ca/ and sets ssl.certificate_authorities automatically.
+  # Create with: kubectl create secret generic ad-ca --from-file=ca.crt=./your-ca.pem -n <namespace>
+  sslCertificateAuthoritiesSecret: ""   # e.g. "ad-ca"
+  # sslCertificateAuthorities: override the CA file path if not using sslCertificateAuthoritiesSecret.
+  # Ignored when sslCertificateAuthoritiesSecret is set (path is derived from the mount point).
+  sslCertificateAuthorities: ""
 
 # JWT/OIDC realm (disabled by default)
 # Enables ES to verify JWT tokens issued by an external IdP (Okta, Azure AD, Keycloak, etc.).
 # Typical pattern: API gateway validates OAuth2/OIDC flow and passes the Bearer token to ES;
 # ES verifies the signature and maps JWT group claims to ES roles.
-# Order 2 in the realm chain: native(0) -> jwt(2) -> ad(3).
+# Order 2 in the realm chain: file(0/built-in) -> jwt1(2) -> ad1(3) -> native(built-in/last).
 # Both jwt.enabled and ad.enabled can be true simultaneously:
 #   - Human operators / admins: authenticate via AD credentials (DOMAIN\username)
 #   - API gateway / applications: authenticate via Bearer JWT token

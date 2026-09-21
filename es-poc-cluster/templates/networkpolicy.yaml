@@ -43,8 +43,10 @@ spec:
     - ports:
         - port: 636
           protocol: TCP
+        {{- if hasPrefix "ldap://" .Values.ad.url }}
         - port: 389
           protocol: TCP
+        {{- end }}
     {{- end }}
     {{- if or (and .Values.jwt.enabled (hasPrefix "https://" .Values.jwt.jwksetPath)) .Values.ingest.mlEnabled }}
     # Port 443 egress:

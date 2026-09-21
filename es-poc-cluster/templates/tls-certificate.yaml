@@ -9,6 +9,15 @@ spec:
   secretName: {{ .Values.tls.secretName }}
   duration: {{ .Values.tls.duration }}
   renewBefore: {{ .Values.tls.renewBefore }}
+  # usages must include both serverAuth and clientAuth because ES transport TLS is mutual:
+  # each node simultaneously acts as TLS server (accepting connections) and TLS client
+  # (initiating connections). JDK 17+ enforces Extended Key Usage -- omitting either EKU
+  # causes the TLS handshake to fail and prevents cluster formation.
+  usages:
+    - server auth
+    - client auth
+    - digital signature
+    - key encipherment
   issuerRef:
     name: {{ .Values.tls.issuerName }}
     kind: Issuer

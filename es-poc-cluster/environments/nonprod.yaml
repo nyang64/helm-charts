@@ -29,8 +29,9 @@ tls:
   issuerName: "es-nonprod-issuer"
 
 elasticPassword:
-  existingSecret: ""
-  password: "changeme-nonprod"   # rotate before first deployment
+  existingSecret: "es-nonprod-elastic-secret"   # create before first deploy:
+  # kubectl create secret generic es-nonprod-elastic-secret \
+  #   --from-literal=ELASTIC_PASSWORD="<strong-password>" -n <namespace>
 
 # Master -- 3 nodes managing a 3-data-node cluster.
 # Cluster state is proportionally smaller than prod (~half the shards/indices).
@@ -116,7 +117,7 @@ ad:
   dataUserGroupDn: "CN=ES-DataUsers,OU=Groups,DC=your-corp,DC=com"
 
 # JWT realm -- enable when the API gateway is wired to pass Bearer tokens to ES.
-# Realm chain: native(0) -> jwt1(2) -> ad1(3). Both realms can be active simultaneously.
+# Realm chain: file(0/built-in) -> jwt1(2) -> ad1(3) -> native(built-in/last). Both realms can be active simultaneously.
 # Set jwksetPath to <allowedIssuer>/.well-known/jwks.json (or a local file path for air-gapped).
 jwt:
   enabled: false   # flip to true once IdP and API gateway are configured
