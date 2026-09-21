@@ -22,12 +22,21 @@ data:
           privileges:
             - read
             - write
-            - index
 
-  {{- if .Values.ad.enabled }}
+  {{- if or .Values.ad.enabled .Values.jwt.enabled }}
   role_mapping.yml: |
     es_admin:
+      {{- if .Values.ad.enabled }}
       - {{ .Values.ad.adminGroupDn | quote }}
+      {{- end }}
+      {{- if .Values.jwt.enabled }}
+      - {{ .Values.jwt.adminGroup | quote }}
+      {{- end }}
     es_data_user:
+      {{- if .Values.ad.enabled }}
       - {{ .Values.ad.dataUserGroupDn | quote }}
+      {{- end }}
+      {{- if .Values.jwt.enabled }}
+      - {{ .Values.jwt.dataUserGroup | quote }}
+      {{- end }}
   {{- end }}

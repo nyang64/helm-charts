@@ -1,9 +1,10 @@
 {{- if and .Values.ingest.mlEnabled .Values.ml.installJob }}
 # Standalone Job -- NOT a Helm hook. Apply manually after the cluster is healthy:
 #
-#   kubectl apply -f <(helm template es-poc-cluster . \
+#   kubectl apply -f <(helm template <release-name> . \
+#     -f environments/<your-env>.yaml \
 #     --show-only templates/model-loader-job.yaml \
-#     -n <namespace>) -n <namespace>
+#     --set ml.installJob=true) -n <namespace>
 #
 # The Job downloads the model from HuggingFace (or an internal mirror via ml.hubUrl),
 # converts it to TorchScript, uploads it to ES, and starts it on the ingest+ml pods.

@@ -28,9 +28,22 @@ data:
     xpack.security.enabled: false
     {{- end }}
 
+    {{- if and .Values.jwt.enabled .Values.security.enabled }}
+    xpack.security.authc.realms.jwt.jwt1:
+      order: 2
+      token_type: {{ .Values.jwt.tokenType }}
+      client_authentication.type: {{ .Values.jwt.clientAuthentication }}
+      allowed_issuer: {{ .Values.jwt.allowedIssuer | quote }}
+      allowed_audiences: {{ .Values.jwt.allowedAudiences | toJson }}
+      claims.principal: {{ .Values.jwt.principalClaim | quote }}
+      {{- if .Values.jwt.groupsClaim }}
+      claims.groups: {{ .Values.jwt.groupsClaim | quote }}
+      {{- end }}
+      pkc_jwkset_path: {{ .Values.jwt.jwksetPath | quote }}
+    {{- end }}
     {{- if and .Values.ad.enabled .Values.security.enabled }}
     xpack.security.authc.realms.active_directory.ad1:
-      order: 2
+      order: 3
       domain_name: {{ .Values.ad.domainName | quote }}
       url: {{ .Values.ad.url | quote }}
       bind_dn: {{ .Values.ad.bindDn | quote }}

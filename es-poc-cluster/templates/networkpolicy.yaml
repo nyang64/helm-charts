@@ -19,6 +19,10 @@ spec:
       ports:
         - port: 9200
         - port: 9300
+    # Open port 9200 to all pods. When istio.enabled=true, AuthorizationPolicy provides
+    # the real access control -- this rule exists so Istio's iptables interception
+    # is not blocked at the NetworkPolicy layer. When Istio is disabled (dev/test),
+    # xpack security handles authentication; restrict further if required by policy.
     - ports:
         - port: 9200
   egress:
@@ -39,5 +43,13 @@ spec:
         - port: 636
           protocol: TCP
         - port: 389
+          protocol: TCP
+    {{- end }}
+    {{- if or (and .Values.jwt.enabled (hasPrefix "https://" .Values.jwt.jwksetPath)) .Values.ingest.mlEnabled }}
+    # Port 443 egress:
+    #   jwt.enabled + HTTPS jwksetPath: ES pods fetch public signing keys from IdP at startup
+    #   ingest.mlEnabled: model-loader Job (same pod selector) fetches model from HuggingFace
+    - ports:
+        - port: 443
           protocol: TCP
     {{- end }}

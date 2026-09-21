@@ -1,5 +1,5 @@
 # Non-production -- 9-15 TB raw x 3 replicas = half of prod capacity across 5 data pods.
-# Per-pod storage matches prod (5 Ti each) because half the data with half the nodes
+# Per-pod storage matches prod (3Ti each) because half the data with half the nodes
 # works out to the same per-node footprint.
 # Usage: helm template es-poc-cluster . -f environments/nonprod.yaml
 
@@ -15,6 +15,7 @@ istio:
     tls:
       mode: SIMPLE
       credentialName: "es-nonprod-gateway-tls"   # TLS secret must exist in istio-system namespace
+  allowedNamespaces: []   # add namespaces of in-cluster apps that call ES directly, e.g. ["my-app"]
 
 sysctl:
   enabled: true
@@ -113,3 +114,15 @@ ad:
   groupSearchBaseDn: "OU=Groups,DC=your-corp,DC=com"
   adminGroupDn: "CN=ES-Admins,OU=Groups,DC=your-corp,DC=com"
   dataUserGroupDn: "CN=ES-DataUsers,OU=Groups,DC=your-corp,DC=com"
+
+# JWT realm -- enable when the API gateway is wired to pass Bearer tokens to ES.
+# Realm chain: native(0) -> jwt1(2) -> ad1(3). Both realms can be active simultaneously.
+# Set jwksetPath to <allowedIssuer>/.well-known/jwks.json (or a local file path for air-gapped).
+jwt:
+  enabled: false   # flip to true once IdP and API gateway are configured
+  allowedIssuer: "https://your-idp-nonprod.your-corp.com"
+  allowedAudiences:
+    - "es-nonprod"
+  jwksetPath: "https://your-idp-nonprod.your-corp.com/.well-known/jwks.json"
+  adminGroup: "ES-Admins"        # must match the 'groups' claim value in JWT tokens
+  dataUserGroup: "ES-DataUsers"

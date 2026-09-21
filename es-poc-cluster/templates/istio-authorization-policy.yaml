@@ -1,8 +1,46 @@
 {{- if .Values.istio.enabled }}
 # Controls which workloads may reach ES pods.
-# Rule 1: ES pods (same ServiceAccount) -> full access on 9200 + 9300
-# Rule 2: Any workload in the same namespace -> port 9200 only (client/app traffic)
-# Extend Rule 2 with additional namespaces if your app pods are deployed elsewhere.
+#
+# Traffic patterns and the rule that covers each:
+#   Same cluster, same namespace         -> Rule 2 (namespace match)
+#   Same cluster, different namespace    -> Rule 3 (istio.allowedNamespaces)
+#   Different cluster, shared Istio CP   -> Rule 3 (istio.allowedNamespaces) or Rule 4 (principals)
+#   Different cluster, separate Istio CP -> north-south via Ingress Gateway (Rule 5)
+#   External client (no k8s)            -> north-south via Ingress Gateway (Rule 5)
+#
+# Cross-cluster, SHARED Istio control plane (same SPIFFE trust domain):
+#   Traffic is east-west -- Ingress Gateway is NOT involved. Both clusters share a root CA
+#   so each pod carries a SPIFFE identity: cluster.local/ns/<namespace>/sa/<service-account>.
+#   Istio routes directly pod-to-pod (single-network) or via east-west gateways (multi-network).
+#
+#   Option A -- namespace match (simpler, use istio.allowedNamespaces):
+#     Works when the remote app namespace name is known and unique across clusters.
+#     Risk: a different cluster could have a namespace with the same name.
+#
+#   Option B -- service account principal match (precise, for multi-cluster):
+#     Matches the full SPIFFE URI -- globally unique across all clusters in the mesh.
+#     Add a rule like this to the policy (not templated here -- platform team applies it
+#     once the remote service account is known):
+#
+#     - from:
+#         - source:
+#             principals:
+#               - "cluster.local/ns/<remote-namespace>/sa/<remote-service-account>"
+#       to:
+#         - operation:
+#             ports: ["9200"]
+#
+#     Find the principal of a running pod:
+#       kubectl exec -n <ns> <pod> -- \
+#         curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/ \
+#         (or inspect the x-forwarded-client-cert header on an ES request)
+#     Or derive it directly: cluster.local/ns/<namespace>/sa/<serviceAccountName>
+#
+# Cross-cluster, SEPARATE Istio control planes (different trust domains):
+#   Clusters do not share a root CA -- SPIFFE identities are not mutually trusted.
+#   Traffic must exit the source cluster and enter via the Istio Ingress Gateway (north-south).
+#   ES xpack security (API key or JWT realm) handles application-level auth as normal.
+#   No AuthorizationPolicy change needed here -- Rule 5 (istio-system) already covers it.
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:
@@ -15,7 +53,7 @@ spec:
       {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
   action: ALLOW
   rules:
-    # ES pods talk to each other -- transport (9300) and internal HTTP (9200)
+    # Rule 1: ES pods talk to each other -- transport (9300) and internal HTTP (9200)
     - from:
         - source:
             principals:
@@ -23,15 +61,25 @@ spec:
       to:
         - operation:
             ports: ["9200", "9300"]
-    # App pods and the model-loader Job in the same namespace -- HTTP only
+    # Rule 2: App pods and the model-loader Job in the same namespace -- HTTP only
     - from:
         - source:
             namespaces: ["{{ .Release.Namespace }}"]
       to:
         - operation:
             ports: ["9200"]
+    {{- if .Values.istio.allowedNamespaces }}
+    # Rule 3: Client workloads in additional namespaces (istio.allowedNamespaces) -- HTTP only
+    # Covers same-cluster cross-namespace and shared-Istio-CP cross-cluster (Option A above).
+    - from:
+        - source:
+            namespaces: {{ .Values.istio.allowedNamespaces | toJson }}
+      to:
+        - operation:
+            ports: ["9200"]
+    {{- end }}
     {{- if .Values.istio.gateway.hostname }}
-    # Istio ingress gateway (istio-system namespace) -- external traffic via Gateway + VirtualService
+    # Rule 5: Istio ingress gateway -- external and separate-Istio-CP cross-cluster traffic
     - from:
         - source:
             namespaces: ["istio-system"]

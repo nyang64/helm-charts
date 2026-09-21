@@ -3,12 +3,28 @@ Validate that incompatible value combinations are caught at template render time
 not at Elasticsearch startup time inside the cluster.
 */}}
 
-{{- if and .Values.security.enabled (not .Values.tls.enabled) (not .Values.istio.enabled) }}
-{{- fail "Invalid configuration: security.enabled=true requires either tls.enabled=true (cert-manager manages certs) or istio.enabled=true (Istio handles HTTP TLS; transport TLS still needs tls.enabled=true). Set security.enabled=false only for isolated dev/test." }}
+{{- if and .Values.security.enabled (not .Values.tls.enabled) }}
+{{- fail "Invalid configuration: security.enabled=true requires tls.enabled=true. ES transport TLS (port 9300) needs cert-manager certificates regardless of istio.enabled -- Istio only handles HTTP TLS (port 9200). Set security.enabled=false only for isolated dev/test." }}
 {{- end }}
 
 {{- if and .Values.ad.enabled (not .Values.security.enabled) }}
 {{- fail "Invalid configuration: ad.enabled=true requires security.enabled=true. Active Directory authentication cannot function without xpack security." }}
+{{- end }}
+
+{{- if and .Values.jwt.enabled (not .Values.security.enabled) }}
+{{- fail "Invalid configuration: jwt.enabled=true requires security.enabled=true. JWT realm cannot function without xpack security." }}
+{{- end }}
+
+{{- if and .Values.jwt.enabled (not .Values.jwt.allowedIssuer) }}
+{{- fail "Invalid configuration: jwt.enabled=true requires jwt.allowedIssuer (the expected 'iss' claim in tokens from your IdP)." }}
+{{- end }}
+
+{{- if and .Values.jwt.enabled (not .Values.jwt.jwksetPath) }}
+{{- fail "Invalid configuration: jwt.enabled=true requires jwt.jwksetPath (HTTPS URL or file path to the IdP's JWKS endpoint)." }}
+{{- end }}
+
+{{- if and .Values.jwt.enabled (not .Values.jwt.allowedAudiences) }}
+{{- fail "Invalid configuration: jwt.enabled=true requires jwt.allowedAudiences to be a non-empty list (must match the 'aud' claim in tokens issued by the IdP)." }}
 {{- end }}
 
 {{- if and .Values.istio.enabled .Values.istio.gateway.hostname (eq .Values.istio.gateway.tls.mode "SIMPLE") (not .Values.istio.gateway.tls.credentialName) }}

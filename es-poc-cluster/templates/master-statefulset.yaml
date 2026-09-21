@@ -114,7 +114,7 @@ spec:
               mountPath: /usr/share/elasticsearch/config/roles.yml
               subPath: roles.yml
               readOnly: true
-            {{- if .Values.ad.enabled }}
+            {{- if or .Values.ad.enabled .Values.jwt.enabled }}
             - name: es-roles
               mountPath: /usr/share/elasticsearch/config/role_mapping.yml
               subPath: role_mapping.yml

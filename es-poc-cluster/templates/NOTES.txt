@@ -10,7 +10,7 @@ Retrieve this runbook any time:
 ================================================================
 POST-INSTALL RUNBOOK
 ================================================================
-{{- if .Values.istio.gateway.hostname }}
+{{- if and .Values.istio.enabled .Values.istio.gateway.hostname }}
 
 PRE-REQUISITE -- TLS secret for the Istio ingress gateway (platform team)
 -------------------------------------------------------------------------
@@ -46,7 +46,7 @@ STEP 1 -- Wait for all pods to be ready
 
 STEP 2 -- Connect to the cluster
 --------------------------------
-{{- if .Values.istio.gateway.hostname }}
+{{- if and .Values.istio.enabled .Values.istio.gateway.hostname }}
   External URL (via Istio Gateway -- no port-forward needed):
   export ES_URL=https://{{ .Values.istio.gateway.hostname }}
 
@@ -76,11 +76,14 @@ STEP 2 -- Connect to the cluster
     -u elastic:$ELASTIC_PASSWORD \
     "$ES_URL/_cluster/health?pretty"
 
+{{- $step := 2 }}
+
 {{- if .Values.ad.enabled }}
+{{- $step = add $step 1 }}
 
 
-STEP 3 -- Verify AD integration
--------------------------------
+STEP {{ $step }} -- Verify AD integration
+-----------------------------------------
   AD connectivity failure does NOT affect the elastic superuser -- only AD
   users are locked out. The cluster itself continues to operate normally.
 
@@ -98,9 +101,47 @@ STEP 3 -- Verify AD integration
     -H "Content-Type: application/json" -d '{"index":[{"names":["*"],"privileges":["read"]}]}'
 {{- end }}
 
+{{- if .Values.jwt.enabled }}
+{{- $step = add $step 1 }}
 
-STEP {{ if .Values.ad.enabled }}4{{ else }}3{{ end }} -- Create an application API key
---------------------------------------------------------------------------------------
+
+STEP {{ $step }} -- Verify JWT authentication
+---------------------------------------------
+  Realm chain: native(0) -> jwt1(2){{ if .Values.ad.enabled }} -> ad1(3){{ end }}
+  - API gateway / applications: authenticate with Bearer JWT token (jwt1 realm)
+{{- if .Values.ad.enabled }}
+  - Human operators / admins: authenticate with AD credentials (DOMAIN\username, ad1 realm)
+{{- end }}
+  - Bootstrap / maintenance: authenticate as elastic (native realm, always available)
+
+  Obtain a JWT from your IdP ({{ .Values.jwt.allowedIssuer }}) and verify:
+  export JWT_TOKEN="<bearer-token-from-idp>"
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
+    -H "Authorization: Bearer $JWT_TOKEN" \
+    -H "ES-Client-Authentication: none" \
+    "$ES_URL/_security/_authenticate?pretty"
+  # Expected: realm.name = "jwt1", roles = [mapped role from groups claim]
+  # Token must include: iss={{ .Values.jwt.allowedIssuer | quote }},
+  #   aud={{ index .Values.jwt.allowedAudiences 0 | default "" | quote }},
+  #   {{ .Values.jwt.groupsClaim }}=[{{ .Values.jwt.adminGroup | quote }} or {{ .Values.jwt.dataUserGroup | quote }}]
+
+  Role mapping (role_mapping.yml on disk -- no ES API call needed):
+{{- if .Values.ad.enabled }}
+    es_admin:     AD DN {{ .Values.ad.adminGroupDn | quote }}
+                  JWT group {{ .Values.jwt.adminGroup | quote }}
+    es_data_user: AD DN {{ .Values.ad.dataUserGroupDn | quote }}
+                  JWT group {{ .Values.jwt.dataUserGroup | quote }}
+{{- else }}
+    es_admin:     JWT group {{ .Values.jwt.adminGroup | quote }}
+    es_data_user: JWT group {{ .Values.jwt.dataUserGroup | quote }}
+{{- end }}
+{{- end }}
+
+{{- $step = add $step 1 }}
+
+
+STEP {{ $step }} -- Create an application API key
+-------------------------------------------------
   Applications authenticate with API keys, not user credentials. Keys are
   scoped to exact permissions, have no AD dependency at runtime, and can be
   rotated without changing app configuration.
@@ -133,12 +174,14 @@ STEP {{ if .Values.ad.enabled }}4{{ else }}3{{ end }} -- Create an application A
   Authorization: ApiKey <base64(id:api_key)>
 
 {{ if .Values.ingest.mlEnabled -}}
-STEP {{ if .Values.ad.enabled }}5{{ else }}4{{ end }} -- Load the embedding model ({{ .Values.ml.modelId }})
------------------------------------------------------------------------------------------------------------
+{{- $step = add $step 1 }}
+STEP {{ $step }} -- Load the embedding model ({{ .Values.ml.modelId }})
+-----------------------------------------------------------------------
   Apply the model-loader Job (runs once; retries up to 5 times if ES is not ready).
   ml.installJob=true is required -- the Job is off by default to prevent it running
   before the cluster is healthy:
   kubectl apply -f <(helm template {{ .Release.Name }} . \
+    -f environments/<your-env>.yaml \
     --show-only templates/model-loader-job.yaml \
     --set ml.installJob=true) \
     -n {{ .Release.Namespace }}
@@ -157,8 +200,9 @@ STEP {{ if .Values.ad.enabled }}5{{ else }}4{{ end }} -- Load the embedding mode
     -n {{ .Release.Namespace }}
 
 
-STEP {{ if .Values.ad.enabled }}6{{ else }}5{{ end }} -- Create an inference endpoint
---------------------------------------------------------------------------------------
+{{- $step = add $step 1 }}
+STEP {{ $step }} -- Create an inference endpoint
+------------------------------------------------
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
     -X PUT "$ES_URL/_inference/text_embedding/{{ .Values.ml.modelId | replace "/" "-" | lower }}" \
@@ -173,8 +217,9 @@ STEP {{ if .Values.ad.enabled }}6{{ else }}5{{ end }} -- Create an inference end
     }'
 
 
-STEP {{ if .Values.ad.enabled }}7{{ else }}6{{ end }} -- Create an index with semantic_text mapping
-----------------------------------------------------------------------------------------------------
+{{- $step = add $step 1 }}
+STEP {{ $step }} -- Create an index with semantic_text mapping
+-------------------------------------------------------------
   Adjust field names to match your document schema. The body field uses
   semantic_text -- ES automatically chunks and embeds it on every write.
 
@@ -195,8 +240,9 @@ STEP {{ if .Values.ad.enabled }}7{{ else }}6{{ end }} -- Create an index with se
     }'
 
 
-STEP {{ if .Values.ad.enabled }}8{{ else }}7{{ end }} -- Smoke test
--------------------------------------------------------------------
+{{- $step = add $step 1 }}
+STEP {{ $step }} -- Smoke test
+------------------------------
   Index a document (ES chunks and embeds the body field automatically):
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
@@ -226,8 +272,9 @@ STEP {{ if .Values.ad.enabled }}8{{ else }}7{{ end }} -- Smoke test
   A hit with a non-zero score confirms the full pipeline is working.
 
 {{ else -}}
-STEP {{ if .Values.ad.enabled }}5{{ else }}4{{ end }} -- Cluster is ready (ingest.mlEnabled=false -- no ML model configured)
------------------------------------------------------------------------------------------------------------------------------
+{{- $step = add $step 1 }}
+STEP {{ $step }} -- Cluster is ready (ingest.mlEnabled=false -- no ML model configured)
+---------------------------------------------------------------------------------------
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -u elastic:$ELASTIC_PASSWORD \
     "$ES_URL/_cat/nodes?v"

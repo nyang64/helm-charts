@@ -7,6 +7,8 @@ metadata:
     {{- include "es-poc-cluster.labels" . | nindent 4 }}
 spec:
   secretName: {{ .Values.tls.secretName }}
+  duration: {{ .Values.tls.duration }}
+  renewBefore: {{ .Values.tls.renewBefore }}
   issuerRef:
     name: {{ .Values.tls.issuerName }}
     kind: Issuer
