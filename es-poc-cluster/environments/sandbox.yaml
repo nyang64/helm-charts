@@ -7,6 +7,36 @@
 #   Istio must be installed
 #   kubectl create secret generic es-sandbox-elastic-secret \
 #     --from-literal=ELASTIC_PASSWORD=<strong-password> -n <namespace>
+#
+#   vm.max_map_count=262144 must be set on every worker node BEFORE deploying.
+#   sysctl.enabled=false here because the privileged init container that sets it
+#   requires the OpenShift 'privileged' SCC, which is typically blocked in shared
+#   sandbox namespaces. Use the Node Tuning Operator instead (platform-team prereq):
+#
+#     kubectl apply -f - <<EOF
+#     apiVersion: tuned.openshift.io/v1
+#     kind: Tuned
+#     metadata:
+#       name: es-vm-max-map-count
+#       namespace: openshift-cluster-node-tuning-operator
+#     spec:
+#       profile:
+#         - name: es-max-map-count
+#           data: |
+#             [main]
+#             summary=Elasticsearch vm.max_map_count tuning
+#             [sysctl]
+#             vm.max_map_count=262144
+#       recommend:
+#         - match:
+#             - label: node-role.kubernetes.io/worker
+#           priority: 20
+#           profile: es-max-map-count
+#     EOF
+#
+#   Verify after applying (allow ~60s for NTO to apply the profile):
+#     oc debug node/<worker-node> -- chroot /host sysctl vm.max_map_count
+#   Expected: vm.max_map_count = 262144
 
 clusterName: es-sandbox
 fullnameOverride: "es-sandbox"
