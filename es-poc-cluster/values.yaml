@@ -158,19 +158,27 @@ istio:
 
 tls:
   enabled: true
-  secretName: "es-poc-tls"
-  issuerName: "es-poc-issuer"
+  secretName: ""    # defaults to <fullname>-tls; set explicitly to share a cert across releases
+  issuerName: ""    # defaults to <fullname>-issuer; must match the cert-manager Issuer you deploy
   duration: "8760h"     # 1 year cert validity; cert-manager default is 90 days
   renewBefore: "720h"   # begin renewal 30 days before expiry; allows time for rolling restart
 
 probes:
+  startup:
+    # Startup probe runs before liveness; liveness is disabled until it passes.
+    # Allows up to periodSeconds * failureThreshold = 300 s for ES to start.
+    periodSeconds: 10
+    timeoutSeconds: 10
+    failureThreshold: 30
   liveness:
-    initialDelaySeconds: 90
+    # initialDelaySeconds can be 0 when startupProbe is used, but kept non-zero
+    # as a safety margin for clusters that don't support startup probes.
+    initialDelaySeconds: 10
     periodSeconds: 20
     timeoutSeconds: 10
     failureThreshold: 3
   readiness:
-    initialDelaySeconds: 60
+    initialDelaySeconds: 10
     periodSeconds: 10
     timeoutSeconds: 10
     failureThreshold: 3
@@ -225,8 +233,8 @@ ml:
   # insecure: skip TLS certificate verification when connecting to ES.
   # Set true when using self-signed certs (the default cert-manager setup in this chart).
   insecure: true
-  # eland image version should match the ES image tag.
-  elandImage: "docker.elastic.co/eland/eland:8.17.7"
+  # eland does not publish patch-level images; tag tracks ES major.minor only.
+  elandImage: "docker.elastic.co/eland/eland:8.17.0"
 
 # Active Directory integration (disabled by default)
 # When enabled, users authenticate with DOMAIN\username credentials.
@@ -264,6 +272,10 @@ ad:
 jwt:
   enabled: false
   tokenType: "id_token"      # id_token (user-facing SSO) | access_token (M2M service tokens)
+  # allowedSubjects / allowedSubjectPatterns: REQUIRED when tokenType=access_token.
+  # ES rejects access_token realm config if neither is set. Not used for id_token.
+  allowedSubjects: []           # exact 'sub' claim values to accept, e.g. ["svc-account@your-corp.com"]
+  allowedSubjectPatterns: []    # regex patterns, e.g. ["^svc-.*@your-corp\\.com$"]
   allowedIssuer: "https://your-idp.com"
   allowedAudiences:
     - "es-cluster"           # must match the 'aud' claim in tokens issued by the IdP
@@ -279,8 +291,7 @@ jwt:
   # They appear in role_mapping.yml alongside AD group DNs when both realms are active.
   adminGroup: "ES-Admins"        # JWT groups claim value -> es_admin role
   dataUserGroup: "ES-DataUsers"  # JWT groups claim value -> es_data_user role
-  # allowedSignatureAlgorithms: restrict which JWS algorithms ES accepts when verifying tokens.
-  # Leave empty to accept all algorithms supported by the configured JWKS (RS256, RS384, RS512,
-  # ES256, ES384, ES512, PS256, PS384, PS512). Restrict when your IdP uses a specific algorithm
-  # and you want to reject tokens signed with weaker algorithms.
+  # allowedSignatureAlgorithms: ES defaults to RS256 only when omitted. Add other algorithms
+  # your IdP uses (e.g. ES256, RS384) or ES will reject those tokens. Common values:
+  # RS256, RS384, RS512, ES256, ES384, ES512, PS256, PS384, PS512.
   allowedSignatureAlgorithms: []   # e.g. ["RS256", "ES256"]

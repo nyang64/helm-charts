@@ -38,7 +38,10 @@ spec:
         proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
       {{- end }}
     spec:
-      restartPolicy: OnFailure
+      # Never so each retry gets a new pod with a fresh Istio sidecar.
+      # OnFailure restarts in the same pod -- after quitquitquit kills the proxy on the
+      # first failure, all subsequent retries in that pod have no proxy and fail immediately.
+      restartPolicy: Never
       serviceAccountName: {{ include "es-poc-cluster.serviceAccountName" . }}
       automountServiceAccountToken: false
       securityContext:
@@ -66,8 +69,12 @@ spec:
                 {{- end }}
                 --hub-model-id {{ .Values.ml.modelId | quote }} \
                 --task-type {{ .Values.ml.taskType | quote }} \
-                {{- if and .Values.ml.insecure .Values.tls.enabled (not .Values.istio.enabled) }}
+                {{- if and .Values.tls.enabled (not .Values.istio.enabled) }}
+                {{- if .Values.ml.insecure }}
                 --insecure \
+                {{- else }}
+                --ca-certs /usr/share/eland/certs/ca.crt \
+                {{- end }}
                 {{- end }}
                 --start
               EXIT=$?
@@ -85,6 +92,12 @@ spec:
             {{- end }}
             - name: HF_ENDPOINT
               value: {{ .Values.ml.hubUrl | quote }}
+          {{- if and .Values.tls.enabled (not .Values.istio.enabled) (not .Values.ml.insecure) }}
+          volumeMounts:
+            - name: tls-ca
+              mountPath: /usr/share/eland/certs
+              readOnly: true
+          {{- end }}
           resources:
             requests:
               cpu: "500m"
@@ -92,4 +105,13 @@ spec:
             limits:
               cpu: "2000m"
               memory: "4Gi"
+      {{- if and .Values.tls.enabled (not .Values.istio.enabled) (not .Values.ml.insecure) }}
+      volumes:
+        - name: tls-ca
+          secret:
+            secretName: {{ include "es-poc-cluster.tlsSecretName" . }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+      {{- end }}
 {{- end }}

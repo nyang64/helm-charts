@@ -10,6 +10,11 @@ Retrieve this runbook any time:
 ================================================================
 POST-INSTALL RUNBOOK
 ================================================================
+{{- $step := 2 }}
+{{- $curlAuth := "" }}
+{{- if .Values.security.enabled }}
+{{- $curlAuth = " -u \"elastic:${ELASTIC_PASSWORD}\"" }}
+{{- end }}
 {{- if and .Values.istio.enabled .Values.istio.gateway.hostname }}
 
 PRE-REQUISITE -- TLS secret for the Istio ingress gateway (platform team)
@@ -39,6 +44,23 @@ PRE-REQUISITE -- TLS secret for the Istio ingress gateway (platform team)
   EOF
 {{- end }}
 
+{{- if or .Values.ad.enabled .Values.jwt.enabled }}
+PRE-REQUISITE -- Elasticsearch license
+---------------------------------------
+  The realm(s) you have enabled require a paid license:
+{{- if .Values.ad.enabled }}
+  - Active Directory (ad1 realm) requires Gold or above.
+{{- end }}
+{{- if .Values.jwt.enabled }}
+  - JWT (jwt1 realm) requires Platinum or above.
+{{- end }}
+  A fresh Elasticsearch cluster starts on Basic. With a Basic license the realm
+  configuration is silently accepted but the realm will fail to authenticate any
+  user. Upgrade BEFORE verifying auth steps below:
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} "$ES_URL/_license?pretty"
+  # "type" must be GOLD or PLATINUM -- if BASIC, apply a trial or production license first.
+{{- end }}
+
 STEP 1 -- Wait for all pods to be ready
 --------------------------------------
   kubectl get pods -n {{ .Release.Namespace }} -w
@@ -57,11 +79,6 @@ STEP 2 -- Connect to the cluster
   kubectl port-forward svc/{{ include "es-poc-cluster.fullname" . }}-ingest \
     9200:9200 -n {{ .Release.Namespace }}
   export ES_URL={{ include "es-poc-cluster.httpScheme" . }}://localhost:9200
-{{- $step := 2 }}
-{{- $curlAuth := "" }}
-{{- if .Values.security.enabled }}
-{{- $curlAuth = " -u elastic:$ELASTIC_PASSWORD" }}
-{{- end }}
 
   {{- if .Values.security.enabled }}
   The elastic superuser authenticates via the native realm -- it is always
@@ -98,10 +115,10 @@ STEP {{ $step }} -- Verify AD integration
   # The "roles" array in the response must contain the expected mapped role.
   # If AD is unreachable: this returns 401; elastic still returns 200.
 
-  To check which roles an AD user would receive without their password:
+  To view the resolved roles for an AD user (run as elastic):
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    -X POST "$ES_URL/_security/user/DOMAIN%5Cyour-ad-username/_has_privileges" \
-    -H "Content-Type: application/json" -d '{"index":[{"names":["*"],"privileges":["read"]}]}'
+    "$ES_URL/_security/user/DOMAIN%5Cyour-ad-username?pretty"
+  # The "roles" array shows which roles the user currently holds.
 {{- end }}
 
 {{- if .Values.jwt.enabled }}
@@ -120,7 +137,10 @@ STEP {{ $step }} -- Configure JWT role mappings (required before JWT auth works)
     {
       "roles": ["es_admin"],
       "enabled": true,
-      "rules": { "field": { "groups": {{ .Values.jwt.adminGroup | quote }} } }
+      "rules": { "all": [
+        { "field": { "groups": {{ .Values.jwt.adminGroup | quote }} } },
+        { "field": { "realm.name": "jwt1" } }
+      ] }
     }'
 
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
@@ -129,7 +149,10 @@ STEP {{ $step }} -- Configure JWT role mappings (required before JWT auth works)
     {
       "roles": ["es_data_user"],
       "enabled": true,
-      "rules": { "field": { "groups": {{ .Values.jwt.dataUserGroup | quote }} } }
+      "rules": { "all": [
+        { "field": { "groups": {{ .Values.jwt.dataUserGroup | quote }} } },
+        { "field": { "realm.name": "jwt1" } }
+      ] }
     }'
 
   Verify the mappings were stored:
@@ -233,7 +256,7 @@ STEP {{ $step }} -- Create an inference endpoint
     {
       "service": "elasticsearch",
       "service_settings": {
-        "model_id": "{{ .Values.ml.modelId | replace "/" "__" }}",
+        "model_id": "{{ .Values.ml.modelId | replace "/" "__" | lower }}",
         "num_allocations": {{ .Values.ingest.replicas }},
         "num_threads": 2
       }

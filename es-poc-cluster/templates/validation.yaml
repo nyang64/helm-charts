@@ -3,6 +3,11 @@ Validate that incompatible value combinations are caught at template render time
 not at Elasticsearch startup time inside the cluster.
 */}}
 
+{{- $fullname := include "es-poc-cluster.fullname" . }}
+{{- if gt (len $fullname) 47 }}
+{{- fail (printf "Invalid configuration: computed fullname '%s' (%d chars) exceeds 47 characters. The longest resource suffix is '-master-headless' (16 chars); fullname + suffix must stay within Kubernetes' 63-char DNS name limit. Shorten nameOverride or fullnameOverride." $fullname (len $fullname)) }}
+{{- end }}
+
 {{- if and .Values.security.enabled (not .Values.tls.enabled) }}
 {{- fail "Invalid configuration: security.enabled=true requires tls.enabled=true. ES transport TLS (port 9300) needs cert-manager certificates regardless of istio.enabled -- Istio only handles HTTP TLS (port 9200). Set security.enabled=false only for isolated dev/test." }}
 {{- end }}
@@ -39,12 +44,20 @@ not at Elasticsearch startup time inside the cluster.
 {{- fail "Invalid configuration: istio.gateway.tls.mode=PASSTHROUGH is not supported. ES HTTP TLS is disabled when istio.enabled=true -- there is no TLS for the gateway to pass through. Use mode=SIMPLE." }}
 {{- end }}
 
-{{- if and .Values.security.enabled (not .Values.elasticPassword.existingSecret) (hasPrefix "changeme" .Values.elasticPassword.password) }}
+{{- if and .Values.security.enabled (not .Values.elasticPassword.existingSecret) }}
+{{- if not .Values.elasticPassword.password }}
+{{- fail "Invalid configuration: elasticPassword.password is empty. ES only sets the bootstrap password when the env var is non-empty. Set a strong password or use elasticPassword.existingSecret." }}
+{{- else if hasPrefix "changeme" .Values.elasticPassword.password }}
 {{- fail "Invalid configuration: elasticPassword.password starts with 'changeme'. Set a strong unique password or reference a pre-created secret via elasticPassword.existingSecret." }}
+{{- end }}
 {{- end }}
 
 {{- if and .Values.ad.enabled (not .Values.ad.existingSecret) (not .Values.ad.bindPassword) }}
 {{- fail "Invalid configuration: ad.enabled=true requires either ad.existingSecret (recommended for production) or ad.bindPassword. Without a bind credential ES cannot authenticate against Active Directory." }}
+{{- end }}
+
+{{- if and .Values.jwt.enabled (eq .Values.jwt.tokenType "access_token") (not .Values.jwt.allowedSubjects) (not .Values.jwt.allowedSubjectPatterns) }}
+{{- fail "Invalid configuration: jwt.tokenType=access_token requires at least one of jwt.allowedSubjects or jwt.allowedSubjectPatterns. ES rejects the JWT realm config without a subject constraint for access tokens." }}
 {{- end }}
 
 {{- if and .Values.jwt.enabled (eq .Values.jwt.clientAuthentication "shared_secret") }}
@@ -69,7 +82,7 @@ not at Elasticsearch startup time inside the cluster.
 
 {{/* Lookup-based prereq checks -- these run against a real cluster during helm install/upgrade.
      During 'helm template' (no cluster access), lookup returns {} and checks are skipped. */}}
-{{- $clusterReachable := lookup "v1" "Namespace" "" "kube-system" }}
+{{- $clusterReachable := lookup "v1" "Namespace" "" .Release.Namespace }}
 {{- if $clusterReachable }}
   {{- if .Values.elasticPassword.existingSecret }}
     {{- $s := lookup "v1" "Secret" .Release.Namespace .Values.elasticPassword.existingSecret }}

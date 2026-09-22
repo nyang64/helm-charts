@@ -46,6 +46,12 @@ data:
       claims.groups: {{ .Values.jwt.groupsClaim | quote }}
       {{- end }}
       pkc_jwkset_path: {{ .Values.jwt.jwksetPath | quote }}
+      {{- if .Values.jwt.allowedSubjects }}
+      allowed_subjects: {{ .Values.jwt.allowedSubjects | toJson }}
+      {{- end }}
+      {{- if .Values.jwt.allowedSubjectPatterns }}
+      allowed_subject_patterns: {{ .Values.jwt.allowedSubjectPatterns | toJson }}
+      {{- end }}
       {{- if .Values.jwt.allowedSignatureAlgorithms }}
       allowed_signature_algorithms: {{ .Values.jwt.allowedSignatureAlgorithms | toJson }}
       {{- end }}

@@ -40,18 +40,35 @@ spec:
         - port: 53
           protocol: TCP
     {{- if .Values.ad.enabled }}
-    - ports:
-        - port: 636
-          protocol: TCP
-        {{- if hasPrefix "ldap://" .Values.ad.url }}
-        - port: 389
-          protocol: TCP
-        {{- end }}
+    {{- $adUrl := urlParse .Values.ad.url }}
+    {{- $adPortStr := "" }}
+    {{- if contains ":" $adUrl.host }}
+    {{- $adPortStr = last (splitList ":" $adUrl.host) }}
+    {{- else if hasPrefix "ldaps://" .Values.ad.url }}
+    {{- $adPortStr = "636" }}
+    {{- else }}
+    {{- $adPortStr = "389" }}
     {{- end }}
-    {{- if or (and .Values.jwt.enabled (hasPrefix "https://" .Values.jwt.jwksetPath)) .Values.ingest.mlEnabled }}
-    # Port 443 egress:
-    #   jwt.enabled + HTTPS jwksetPath: ES pods fetch public signing keys from IdP at startup
-    #   ingest.mlEnabled: model-loader Job (same pod selector) fetches model from HuggingFace
+    - ports:
+        - port: {{ $adPortStr | int }}
+          protocol: TCP
+    {{- end }}
+    {{- if .Values.jwt.enabled }}
+    {{- if hasPrefix "https://" .Values.jwt.jwksetPath }}
+    {{- $jwksUrl := urlParse .Values.jwt.jwksetPath }}
+    {{- $jwksPortStr := "" }}
+    {{- if contains ":" $jwksUrl.host }}
+    {{- $jwksPortStr = last (splitList ":" $jwksUrl.host) }}
+    {{- else }}
+    {{- $jwksPortStr = "443" }}
+    {{- end }}
+    - ports:
+        - port: {{ $jwksPortStr | int }}
+          protocol: TCP
+    {{- end }}
+    {{- end }}
+    {{- if .Values.ingest.mlEnabled }}
+    # model-loader Job fetches model from HuggingFace (or ml.hubUrl)
     - ports:
         - port: 443
           protocol: TCP

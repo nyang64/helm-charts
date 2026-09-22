@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "es-poc-cluster.labels" . | nindent 4 }}
 spec:
-  secretName: {{ .Values.tls.secretName }}
+  secretName: {{ include "es-poc-cluster.tlsSecretName" . }}
   duration: {{ .Values.tls.duration }}
   renewBefore: {{ .Values.tls.renewBefore }}
   # usages must include both serverAuth and clientAuth because ES transport TLS is mutual:
@@ -19,7 +19,7 @@ spec:
     - digital signature
     - key encipherment
   issuerRef:
-    name: {{ .Values.tls.issuerName }}
+    name: {{ include "es-poc-cluster.tlsIssuerName" . }}
     kind: Issuer
   dnsNames:
     - {{ include "es-poc-cluster.fullname" . }}-ingest

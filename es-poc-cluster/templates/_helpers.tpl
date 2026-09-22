@@ -101,6 +101,16 @@ When Istio is disabled, scheme follows tls.enabled.
 {{- if or .Values.istio.enabled (not .Values.tls.enabled) -}}http{{- else -}}https{{- end -}}
 {{- end }}
 
+{{/* TLS secret name -- defaults to <fullname>-tls so two releases in the same namespace don't collide */}}
+{{- define "es-poc-cluster.tlsSecretName" -}}
+{{- .Values.tls.secretName | default (printf "%s-tls" (include "es-poc-cluster.fullname" .)) -}}
+{{- end }}
+
+{{/* TLS issuer name -- defaults to <fullname>-issuer */}}
+{{- define "es-poc-cluster.tlsIssuerName" -}}
+{{- .Values.tls.issuerName | default (printf "%s-issuer" (include "es-poc-cluster.fullname" .)) -}}
+{{- end }}
+
 {{/*
 Generate comma-separated list of master pod names for cluster.initial_master_nodes
 */}}
