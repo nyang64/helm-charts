@@ -1,6 +1,8 @@
 # Sandbox -- 500 GB raw x 3 replicas = 1.5 TB total across 2 data pods (~750 GB each, rounded to 1Ti).
 # Security posture matches nonprod/prod: xpack.security on, TLS on, Istio mTLS.
-# Usage: helm template es-poc-cluster . -f environments/sandbox.yaml
+# Usage: helm template es-poc-cluster . -f environments/sandbox.yaml -n <namespace>
+#   -n is required: without it Helm falls back to the active kubeconfig namespace,
+#   making generated YAML non-reproducible across machines and CI runs.
 #
 # Pre-requisites:
 #   cert-manager must be installed (for transport TLS)
