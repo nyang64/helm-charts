@@ -96,49 +96,6 @@
         }
       }
     },
-    "ad": {
-      "type": "object",
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "existingSecret": { "type": "string" },
-        "bindPassword": { "type": "string" },
-        "domainName": { "type": "string" },
-        "url": { "type": "string", "pattern": "^ldaps?://" },
-        "bindDn": { "type": "string" },
-        "userSearchBaseDn": { "type": "string" },
-        "groupSearchBaseDn": { "type": "string" },
-        "adminGroupDn": { "type": "string" },
-        "dataUserGroupDn": { "type": "string" },
-        "sslCertificateAuthoritiesSecret": { "type": "string" },
-        "sslCertificateAuthorities": { "type": "string" }
-      }
-    },
-    "jwt": {
-      "type": "object",
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "tokenType": { "type": "string", "enum": ["id_token", "access_token"] },
-        "allowedIssuer": { "type": "string" },
-        "allowedAudiences": {
-          "type": "array",
-          "items": { "type": "string" },
-          "minItems": 1
-        },
-        "principalClaim": { "type": "string" },
-        "groupsClaim": { "type": "string" },
-        "clientAuthentication": { "type": "string", "enum": ["none", "shared_secret"] },
-        "jwksetPath": { "type": "string" },
-        "adminGroup": { "type": "string" },
-        "dataUserGroup": { "type": "string" },
-        "allowedSignatureAlgorithms": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": ["RS256","RS384","RS512","ES256","ES384","ES512","PS256","PS384","PS512"]
-          }
-        }
-      }
-    },
     "ml": {
       "type": "object",
       "properties": {

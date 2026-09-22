@@ -39,7 +39,7 @@
 # Cross-cluster, SEPARATE Istio control planes (different trust domains):
 #   Clusters do not share a root CA -- SPIFFE identities are not mutually trusted.
 #   Traffic must exit the source cluster and enter via the Istio Ingress Gateway (north-south).
-#   ES xpack security (API key or JWT realm) handles application-level auth as normal.
+#   ES xpack security (API key auth) handles application-level auth as normal.
 #   No AuthorizationPolicy change needed here -- Rule 5 (istio-system) already covers it.
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy

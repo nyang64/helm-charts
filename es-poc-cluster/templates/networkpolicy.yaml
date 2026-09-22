@@ -39,34 +39,6 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    {{- if .Values.ad.enabled }}
-    {{- $adUrl := urlParse .Values.ad.url }}
-    {{- $adPortStr := "" }}
-    {{- if contains ":" $adUrl.host }}
-    {{- $adPortStr = last (splitList ":" $adUrl.host) }}
-    {{- else if hasPrefix "ldaps://" .Values.ad.url }}
-    {{- $adPortStr = "636" }}
-    {{- else }}
-    {{- $adPortStr = "389" }}
-    {{- end }}
-    - ports:
-        - port: {{ $adPortStr | int }}
-          protocol: TCP
-    {{- end }}
-    {{- if .Values.jwt.enabled }}
-    {{- if hasPrefix "https://" .Values.jwt.jwksetPath }}
-    {{- $jwksUrl := urlParse .Values.jwt.jwksetPath }}
-    {{- $jwksPortStr := "" }}
-    {{- if contains ":" $jwksUrl.host }}
-    {{- $jwksPortStr = last (splitList ":" $jwksUrl.host) }}
-    {{- else }}
-    {{- $jwksPortStr = "443" }}
-    {{- end }}
-    - ports:
-        - port: {{ $jwksPortStr | int }}
-          protocol: TCP
-    {{- end }}
-    {{- end }}
     {{- if .Values.ingest.mlEnabled }}
     # model-loader Job fetches model from HuggingFace (or ml.hubUrl)
     - ports:

@@ -16,68 +16,12 @@ not at Elasticsearch startup time inside the cluster.
 {{- fail "Invalid configuration: tls.enabled=true requires security.enabled=true. ES does not configure any TLS when xpack.security is off, so httpScheme would resolve to https against a plain-HTTP listener. Set tls.enabled=false for security-off deployments." }}
 {{- end }}
 
-{{- if and .Values.ad.enabled (not .Values.security.enabled) }}
-{{- fail "Invalid configuration: ad.enabled=true requires security.enabled=true. Active Directory authentication cannot function without xpack security." }}
-{{- end }}
-
-{{- if and .Values.jwt.enabled (not .Values.security.enabled) }}
-{{- fail "Invalid configuration: jwt.enabled=true requires security.enabled=true. JWT realm cannot function without xpack security." }}
-{{- end }}
-
-{{- if and .Values.jwt.enabled (not .Values.jwt.allowedIssuer) }}
-{{- fail "Invalid configuration: jwt.enabled=true requires jwt.allowedIssuer (the expected 'iss' claim in tokens from your IdP)." }}
-{{- end }}
-
-{{- if and .Values.jwt.enabled (not .Values.jwt.jwksetPath) }}
-{{- fail "Invalid configuration: jwt.enabled=true requires jwt.jwksetPath (HTTPS URL or file path to the IdP's JWKS endpoint)." }}
-{{- end }}
-
-{{- if and .Values.jwt.enabled (not .Values.jwt.allowedAudiences) }}
-{{- fail "Invalid configuration: jwt.enabled=true requires jwt.allowedAudiences to be a non-empty list (must match the 'aud' claim in tokens issued by the IdP)." }}
-{{- end }}
-
 {{- if and .Values.istio.enabled .Values.istio.gateway.hostname (eq .Values.istio.gateway.tls.mode "SIMPLE") (not .Values.istio.gateway.tls.credentialName) }}
 {{- fail "Invalid configuration: istio.gateway.tls.mode=SIMPLE requires istio.gateway.tls.credentialName (name of the TLS secret in the istio-system namespace)." }}
 {{- end }}
 
 {{- if and .Values.istio.enabled (eq .Values.istio.gateway.tls.mode "PASSTHROUGH") }}
 {{- fail "Invalid configuration: istio.gateway.tls.mode=PASSTHROUGH is not supported. ES HTTP TLS is disabled when istio.enabled=true -- there is no TLS for the gateway to pass through. Use mode=SIMPLE." }}
-{{- end }}
-
-{{- if and .Values.security.enabled (not .Values.elasticPassword.existingSecret) }}
-{{- if not .Values.elasticPassword.password }}
-{{- fail "Invalid configuration: elasticPassword.password is empty. ES only sets the bootstrap password when the env var is non-empty. Set a strong password or use elasticPassword.existingSecret." }}
-{{- else if hasPrefix "changeme" .Values.elasticPassword.password }}
-{{- fail "Invalid configuration: elasticPassword.password starts with 'changeme'. Set a strong unique password or reference a pre-created secret via elasticPassword.existingSecret." }}
-{{- end }}
-{{- end }}
-
-{{- if and .Values.ad.enabled (not .Values.ad.existingSecret) (not .Values.ad.bindPassword) }}
-{{- fail "Invalid configuration: ad.enabled=true requires either ad.existingSecret (recommended for production) or ad.bindPassword. Without a bind credential ES cannot authenticate against Active Directory." }}
-{{- end }}
-
-{{- if and .Values.jwt.enabled (eq .Values.jwt.tokenType "access_token") (not .Values.jwt.allowedSubjects) (not .Values.jwt.allowedSubjectPatterns) }}
-{{- fail "Invalid configuration: jwt.tokenType=access_token requires at least one of jwt.allowedSubjects or jwt.allowedSubjectPatterns. ES rejects the JWT realm config without a subject constraint for access tokens." }}
-{{- end }}
-
-{{- if and .Values.jwt.enabled (eq .Values.jwt.clientAuthentication "shared_secret") }}
-{{- fail "Invalid configuration: jwt.clientAuthentication=shared_secret requires provisioning the shared secret into the ES keystore, which this chart does not automate. Set clientAuthentication=none or manually run: kubectl exec <pod> -- elasticsearch-keystore add xpack.security.authc.realms.jwt.jwt1.client_authentication.shared_secret" }}
-{{- end }}
-
-{{- if and .Values.jwt.enabled (not .Values.jwt.principalClaim) }}
-{{- fail "Invalid configuration: jwt.enabled=true requires jwt.principalClaim (the JWT claim used as the Elasticsearch username, e.g. 'sub' or 'email')." }}
-{{- end }}
-
-{{- if and .Values.jwt.enabled (not .Values.jwt.groupsClaim) }}
-{{- fail "Invalid configuration: jwt.enabled=true requires jwt.groupsClaim (the JWT claim containing group memberships for role mapping, e.g. 'groups')." }}
-{{- end }}
-
-{{- if and .Values.jwt.enabled (not .Values.jwt.adminGroup) }}
-{{- fail "Invalid configuration: jwt.enabled=true requires jwt.adminGroup (the JWT groups claim value that maps to the es_admin role)." }}
-{{- end }}
-
-{{- if and .Values.jwt.enabled (not .Values.jwt.dataUserGroup) }}
-{{- fail "Invalid configuration: jwt.enabled=true requires jwt.dataUserGroup (the JWT groups claim value that maps to the es_data_user role)." }}
 {{- end }}
 
 {{/* Lookup-based prereq checks -- these run against a real cluster during helm install/upgrade.
@@ -90,14 +34,6 @@ not at Elasticsearch startup time inside the cluster.
     {{- fail (printf "Pre-install check: Secret '%s' not found in namespace '%s'. Create it before installing (key: ELASTIC_PASSWORD)." .Values.elasticPassword.existingSecret .Release.Namespace) }}
     {{- else if not (hasKey $s.data "ELASTIC_PASSWORD") }}
     {{- fail (printf "Pre-install check: Secret '%s' exists but is missing required key 'ELASTIC_PASSWORD'." .Values.elasticPassword.existingSecret) }}
-    {{- end }}
-  {{- end }}
-  {{- if and .Values.ad.enabled .Values.ad.existingSecret }}
-    {{- $s := lookup "v1" "Secret" .Release.Namespace .Values.ad.existingSecret }}
-    {{- if not (hasKey $s "metadata") }}
-    {{- fail (printf "Pre-install check: Secret '%s' not found in namespace '%s'. Create it before installing (key: AD_BIND_PASSWORD)." .Values.ad.existingSecret .Release.Namespace) }}
-    {{- else if not (hasKey $s.data "AD_BIND_PASSWORD") }}
-    {{- fail (printf "Pre-install check: Secret '%s' exists but is missing required key 'AD_BIND_PASSWORD'." .Values.ad.existingSecret) }}
     {{- end }}
   {{- end }}
   {{- if .Values.tls.enabled }}

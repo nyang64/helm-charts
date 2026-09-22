@@ -44,23 +44,6 @@ PRE-REQUISITE -- TLS secret for the Istio ingress gateway (platform team)
   EOF
 {{- end }}
 
-{{- if or .Values.ad.enabled .Values.jwt.enabled }}
-PRE-REQUISITE -- Elasticsearch license
----------------------------------------
-  The realm(s) you have enabled require a paid license:
-{{- if .Values.ad.enabled }}
-  - Active Directory (ad1 realm) requires Gold or above.
-{{- end }}
-{{- if .Values.jwt.enabled }}
-  - JWT (jwt1 realm) requires Platinum or above.
-{{- end }}
-  A fresh Elasticsearch cluster starts on Basic. With a Basic license the realm
-  configuration is silently accepted but the realm will fail to authenticate any
-  user. Upgrade BEFORE verifying auth steps below:
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} "$ES_URL/_license?pretty"
-  # "type" must be GOLD or PLATINUM -- if BASIC, apply a trial or production license first.
-{{- end }}
-
 STEP 1 -- Wait for all pods to be ready
 --------------------------------------
   kubectl get pods -n {{ .Release.Namespace }} -w
@@ -98,90 +81,6 @@ STEP 2 -- Connect to the cluster
   Verify cluster health:
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     "$ES_URL/_cluster/health?pretty"
-
-{{- if .Values.ad.enabled }}
-{{- $step = add $step 1 }}
-
-
-STEP {{ $step }} -- Verify AD integration
------------------------------------------
-  AD connectivity failure does NOT affect the elastic superuser -- only AD
-  users are locked out. The cluster itself continues to operate normally.
-
-  Authenticate as an AD user to confirm group-to-role mapping works:
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
-    -u "DOMAIN\\your-ad-username:your-ad-password" \
-    "$ES_URL/_security/_authenticate?pretty"
-  # The "roles" array in the response must contain the expected mapped role.
-  # If AD is unreachable: this returns 401; elastic still returns 200.
-
-  To view the resolved roles for an AD user (run as elastic):
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    "$ES_URL/_security/user/DOMAIN%5Cyour-ad-username?pretty"
-  # The "roles" array shows which roles the user currently holds.
-{{- end }}
-
-{{- if .Values.jwt.enabled }}
-{{- $step = add $step 1 }}
-
-
-STEP {{ $step }} -- Configure JWT role mappings (required before JWT auth works)
-------------------------------------------------------------------------------
-  IMPORTANT: ES does NOT read role_mapping.yml for JWT realms -- that file only
-  applies to LDAP/AD. JWT role mapping MUST be configured via the API (one-time,
-  run as elastic after the cluster is healthy):
-
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    -X PUT "$ES_URL/_security/role_mapping/jwt_admin" \
-    -H "Content-Type: application/json" -d '
-    {
-      "roles": ["es_admin"],
-      "enabled": true,
-      "rules": { "all": [
-        { "field": { "groups": {{ .Values.jwt.adminGroup | quote }} } },
-        { "field": { "realm.name": "jwt1" } }
-      ] }
-    }'
-
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    -X PUT "$ES_URL/_security/role_mapping/jwt_data_user" \
-    -H "Content-Type: application/json" -d '
-    {
-      "roles": ["es_data_user"],
-      "enabled": true,
-      "rules": { "all": [
-        { "field": { "groups": {{ .Values.jwt.dataUserGroup | quote }} } },
-        { "field": { "realm.name": "jwt1" } }
-      ] }
-    }'
-
-  Verify the mappings were stored:
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    "$ES_URL/_security/role_mapping/jwt_admin,jwt_data_user?pretty"
-
-{{- $step = add $step 1 }}
-
-
-STEP {{ $step }} -- Verify JWT authentication
----------------------------------------------
-  Realm chain: file(0/built-in) -> jwt1(2){{ if .Values.ad.enabled }} -> ad1(3){{ end }} -> native(built-in/last)
-  - API gateway / applications: authenticate with Bearer JWT token (jwt1 realm)
-{{- if .Values.ad.enabled }}
-  - Human operators / admins: authenticate with AD credentials (DOMAIN\username, ad1 realm)
-{{- end }}
-  - Bootstrap / maintenance: authenticate as elastic (native realm, always available)
-
-  Obtain a JWT from your IdP ({{ .Values.jwt.allowedIssuer }}) and verify:
-  export JWT_TOKEN="<bearer-token-from-idp>"
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
-    -H "Authorization: Bearer $JWT_TOKEN" \
-    -H "ES-Client-Authentication: none" \
-    "$ES_URL/_security/_authenticate?pretty"
-  # Expected: realm.name = "jwt1", roles = [es_admin or es_data_user]
-  # Token must include: iss={{ .Values.jwt.allowedIssuer | quote }},
-  #   aud={{ index .Values.jwt.allowedAudiences 0 | default "" | quote }},
-  #   {{ .Values.jwt.groupsClaim }}=[{{ .Values.jwt.adminGroup | quote }} or {{ .Values.jwt.dataUserGroup | quote }}]
-{{- end }}
 
 {{- if .Values.security.enabled }}
 {{- $step = add $step 1 }}

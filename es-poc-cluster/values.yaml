@@ -148,7 +148,7 @@ istio:
   # allowedNamespaces: additional K8s namespaces whose pods may reach ES on port 9200.
   # The ES namespace itself is always allowed. Add any namespace that runs client workloads
   # (application pods, batch jobs, etc.) that call ES directly over east-west Istio mTLS.
-  # Works for both API key and JWT auth -- the AuthorizationPolicy controls network access;
+  # The AuthorizationPolicy controls network access;
   # ES xpack security controls what the caller is allowed to do once connected.
   allowedNamespaces: []
   # Example:
@@ -236,62 +236,3 @@ ml:
   # eland does not publish patch-level images; tag tracks ES major.minor only.
   elandImage: "docker.elastic.co/eland/eland:8.17.0"
 
-# Active Directory integration (disabled by default)
-# When enabled, users authenticate with DOMAIN\username credentials.
-# Order 3 in the realm chain: file(0/built-in) -> jwt1(2) -> ad1(3) -> native(built-in/last).
-ad:
-  enabled: false
-  existingSecret: ""          # name of pre-existing K8s secret -- if set, chart does not create one
-  bindPassword: ""            # only used when existingSecret is empty (dev/test only)
-  domainName: "your-corp.com"
-  url: "ldaps://ad-server.your-corp.com:636"
-  bindDn: "CN=es-svc,OU=ServiceAccounts,DC=your-corp,DC=com"
-  userSearchBaseDn: "OU=Users,DC=your-corp,DC=com"
-  groupSearchBaseDn: "OU=Groups,DC=your-corp,DC=com"
-  adminGroupDn: "CN=ES-Admins,OU=Groups,DC=your-corp,DC=com"
-  dataUserGroupDn: "CN=ES-DataUsers,OU=Groups,DC=your-corp,DC=com"
-  # sslCertificateAuthoritiesSecret: name of a K8s Secret whose 'ca.crt' key contains the PEM
-  # CA bundle for verifying the AD LDAPS certificate. Required when the AD server uses a private
-  # corporate CA not trusted by the JVM default truststore. When set, the chart mounts the Secret
-  # at /usr/share/elasticsearch/config/certs/ad-ca/ and sets ssl.certificate_authorities automatically.
-  # Create with: kubectl create secret generic ad-ca --from-file=ca.crt=./your-ca.pem -n <namespace>
-  sslCertificateAuthoritiesSecret: ""   # e.g. "ad-ca"
-  # sslCertificateAuthorities: override the CA file path if not using sslCertificateAuthoritiesSecret.
-  # Ignored when sslCertificateAuthoritiesSecret is set (path is derived from the mount point).
-  sslCertificateAuthorities: ""
-
-# JWT/OIDC realm (disabled by default)
-# Enables ES to verify JWT tokens issued by an external IdP (Okta, Azure AD, Keycloak, etc.).
-# Typical pattern: API gateway validates OAuth2/OIDC flow and passes the Bearer token to ES;
-# ES verifies the signature and maps JWT group claims to ES roles.
-# Order 2 in the realm chain: file(0/built-in) -> jwt1(2) -> ad1(3) -> native(built-in/last).
-# Both jwt.enabled and ad.enabled can be true simultaneously:
-#   - Human operators / admins: authenticate via AD credentials (DOMAIN\username)
-#   - API gateway / applications: authenticate via Bearer JWT token
-#   - Bootstrap / maintenance: authenticate as elastic (native realm, always available)
-jwt:
-  enabled: false
-  tokenType: "id_token"      # id_token (user-facing SSO) | access_token (M2M service tokens)
-  # allowedSubjects / allowedSubjectPatterns: REQUIRED when tokenType=access_token.
-  # ES rejects access_token realm config if neither is set. Not used for id_token.
-  allowedSubjects: []           # exact 'sub' claim values to accept, e.g. ["svc-account@your-corp.com"]
-  allowedSubjectPatterns: []    # regex patterns, e.g. ["^svc-.*@your-corp\\.com$"]
-  allowedIssuer: "https://your-idp.com"
-  allowedAudiences:
-    - "es-cluster"           # must match the 'aud' claim in tokens issued by the IdP
-  principalClaim: "sub"     # JWT claim used as the ES username (sub = subject/user ID)
-  groupsClaim: "groups"     # JWT claim containing group memberships for role mapping
-  clientAuthentication: "none"   # none (recommended for gateway pattern) | shared_secret
-  # jwksetPath: path to the IdP's JWKS (JSON Web Key Set -- public signing keys).
-  # ES 8.11+ accepts an HTTPS URL directly; for older versions or air-gapped clusters,
-  # download the JWKS from <allowedIssuer>/.well-known/jwks.json and mount as a file.
-  jwksetPath: "https://your-idp.com/.well-known/jwks.json"
-  # Role mapping: JWT group claim values that map to ES roles.
-  # These are the raw claim values from the JWT (short names, not DNs).
-  # They appear in role_mapping.yml alongside AD group DNs when both realms are active.
-  adminGroup: "ES-Admins"        # JWT groups claim value -> es_admin role
-  dataUserGroup: "ES-DataUsers"  # JWT groups claim value -> es_data_user role
-  # allowedSignatureAlgorithms: ES defaults to RS256 only when omitted. Add other algorithms
-  # your IdP uses (e.g. ES256, RS384) or ES will reject those tokens. Common values:
-  # RS256, RS384, RS512, ES256, ES384, ES512, PS256, PS384, PS512.
-  allowedSignatureAlgorithms: []   # e.g. ["RS256", "ES256"]

@@ -30,9 +30,6 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/elasticsearch-config.yaml") . | sha256sum }}
         checksum/roles: {{ include (print $.Template.BasePath "/es-roles-configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/bootstrap-secret.yaml") . | sha256sum }}
-        {{- if .Values.ad.enabled }}
-        checksum/ad-secret: {{ include (print $.Template.BasePath "/ad-secret.yaml") . | sha256sum }}
-        {{- end }}
         {{- if .Values.istio.enabled }}
         sidecar.istio.io/inject: "true"
         traffic.sidecar.istio.io/excludeInboundPorts: "9300"
@@ -91,13 +88,6 @@ spec:
                   name: {{ .Values.elasticPassword.existingSecret | default (printf "%s-bootstrap" (include "es-poc-cluster.fullname" .)) }}
                   key: ELASTIC_PASSWORD
             {{- end }}
-            {{- if .Values.ad.enabled }}
-            - name: AD_BIND_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.ad.existingSecret | default (printf "%s-ad-secret" (include "es-poc-cluster.fullname" .)) }}
-                  key: AD_BIND_PASSWORD
-            {{- end }}
           resources:
             {{- toYaml .Values.master.resources | nindent 12 }}
           startupProbe:
@@ -143,20 +133,9 @@ spec:
               mountPath: /usr/share/elasticsearch/config/roles.yml
               subPath: roles.yml
               readOnly: true
-            {{- if .Values.ad.enabled }}
-            - name: es-roles
-              mountPath: /usr/share/elasticsearch/config/role_mapping.yml
-              subPath: role_mapping.yml
-              readOnly: true
-            {{- end }}
             {{- if .Values.tls.enabled }}
             - name: tls-certs
               mountPath: /usr/share/elasticsearch/config/certs
-              readOnly: true
-            {{- end }}
-            {{- if .Values.ad.sslCertificateAuthoritiesSecret }}
-            - name: ad-ca
-              mountPath: /usr/share/elasticsearch/config/certs/ad-ca
               readOnly: true
             {{- end }}
       volumes:
@@ -170,11 +149,6 @@ spec:
         - name: tls-certs
           secret:
             secretName: {{ include "es-poc-cluster.tlsSecretName" . }}
-        {{- end }}
-        {{- if .Values.ad.sslCertificateAuthoritiesSecret }}
-        - name: ad-ca
-          secret:
-            secretName: {{ .Values.ad.sslCertificateAuthoritiesSecret }}
         {{- end }}
   volumeClaimTemplates:
     - metadata:

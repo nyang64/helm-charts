@@ -105,25 +105,3 @@ pdb:
     enabled: true
     minAvailable: 1   # keep 1 of 2 ingest pods available at all times
 
-ad:
-  enabled: true
-  existingSecret: "es-nonprod-ad-secret"
-  domainName: "your-corp.com"
-  url: "ldaps://ad-nonprod.your-corp.com:636"
-  bindDn: "CN=es-svc,OU=ServiceAccounts,DC=your-corp,DC=com"
-  userSearchBaseDn: "OU=Users,DC=your-corp,DC=com"
-  groupSearchBaseDn: "OU=Groups,DC=your-corp,DC=com"
-  adminGroupDn: "CN=ES-Admins,OU=Groups,DC=your-corp,DC=com"
-  dataUserGroupDn: "CN=ES-DataUsers,OU=Groups,DC=your-corp,DC=com"
-
-# JWT realm -- enable when the API gateway is wired to pass Bearer tokens to ES.
-# Realm chain: file(0/built-in) -> jwt1(2) -> ad1(3) -> native(built-in/last). Both realms can be active simultaneously.
-# Set jwksetPath to <allowedIssuer>/.well-known/jwks.json (or a local file path for air-gapped).
-jwt:
-  enabled: false   # flip to true once IdP and API gateway are configured
-  allowedIssuer: "https://your-idp-nonprod.your-corp.com"
-  allowedAudiences:
-    - "es-nonprod"
-  jwksetPath: "https://your-idp-nonprod.your-corp.com/.well-known/jwks.json"
-  adminGroup: "ES-Admins"        # must match the 'groups' claim value in JWT tokens
-  dataUserGroup: "ES-DataUsers"

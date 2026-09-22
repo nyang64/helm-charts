@@ -24,13 +24,3 @@ data:
             - write
             - create_index   # write does not include index creation; apps that auto-create indices need this
 
-  {{- if .Values.ad.enabled }}
-  {{- /* role_mapping.yml is only read by LDAP/AD realms. JWT realm ignores this file entirely --
-       JWT role mapping must be configured via the _security/role_mapping API after the cluster is
-       healthy. See the NOTES.txt runbook for the exact API calls. */}}
-  role_mapping.yml: |
-    es_admin:
-      - {{ .Values.ad.adminGroupDn | quote }}
-    es_data_user:
-      - {{ .Values.ad.dataUserGroupDn | quote }}
-  {{- end }}
