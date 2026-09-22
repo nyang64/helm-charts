@@ -96,6 +96,11 @@
         }
       }
     },
+    "esConfig": {
+      "type": "object",
+      "description": "Extra elasticsearch.yml key-value pairs merged after generated config",
+      "additionalProperties": true
+    },
     "kibana": {
       "type": "object",
       "properties": {

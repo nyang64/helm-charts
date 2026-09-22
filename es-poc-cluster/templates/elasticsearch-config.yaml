@@ -33,4 +33,7 @@ data:
     {{- else }}
     xpack.security.enabled: false
     {{- end }}
+    {{- if .Values.esConfig }}
+    {{ .Values.esConfig | toYaml | trim | nindent 4 }}
+    {{- end }}
 
