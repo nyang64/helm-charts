@@ -31,7 +31,11 @@ security:
   enabled: true           # if false, sets xpack.security.enabled: false (insecure)
 
 # sysctl init container sets vm.max_map_count=262144.
-# Requires privileged pods. Disable if nodes already have this set at node level.
+# Requires privileged pods (OpenShift: 'privileged' SCC on the service account).
+# WARNING: setting enabled=false does NOT lower the requirement -- ES bootstrap checks
+# enforce vm.max_map_count >= 262144 whenever security.enabled=true, and the pod will
+# crash-loop if the node value is below that threshold. Only disable if the node already
+# has vm.max_map_count=262144 set at the OS level (e.g. via OpenShift NTO Tuned resource).
 sysctl:
   enabled: true
 
