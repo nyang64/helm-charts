@@ -24,6 +24,18 @@ not at Elasticsearch startup time inside the cluster.
 {{- fail "Invalid configuration: istio.gateway.tls.mode=PASSTHROUGH is not supported. ES HTTP TLS is disabled when istio.enabled=true -- there is no TLS for the gateway to pass through. Use mode=SIMPLE." }}
 {{- end }}
 
+{{- if and .Values.security.enabled (not .Values.elasticPassword.existingSecret) }}
+{{- if not .Values.elasticPassword.password }}
+{{- fail "Invalid configuration: elasticPassword.password is empty. ES only sets the bootstrap password when the env var is non-empty. Set a strong password or use elasticPassword.existingSecret." }}
+{{- else if hasPrefix "changeme" .Values.elasticPassword.password }}
+{{- fail "Invalid configuration: elasticPassword.password starts with 'changeme'. Set a strong unique password or reference a pre-created secret via elasticPassword.existingSecret." }}
+{{- end }}
+{{- end }}
+
+{{- if or (and (hasKey .Values "ad") (index .Values "ad" "enabled")) (and (hasKey .Values "jwt") (index .Values "jwt" "enabled")) }}
+{{- fail "Invalid configuration: ad.enabled and jwt.enabled are no longer supported by this chart. AD and JWT realm support was removed in v0.4.0. Remove these keys from your values file. Use API keys for application authentication." }}
+{{- end }}
+
 {{/* Lookup-based prereq checks -- these run against a real cluster during helm install/upgrade.
      During 'helm template' (no cluster access), lookup returns {} and checks are skipped. */}}
 {{- $clusterReachable := lookup "v1" "Namespace" "" .Release.Namespace }}

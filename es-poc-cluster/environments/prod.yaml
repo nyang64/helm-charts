@@ -6,8 +6,6 @@
 # Pre-requisites:
 #   kubectl create secret generic es-prod-elastic-secret \
 #     --from-literal=ELASTIC_PASSWORD=<vault-sourced-password> -n dia-es-poc
-#   kubectl create secret generic es-prod-ad-secret \
-#     --from-literal=AD_BIND_PASSWORD=<vault-sourced-password> -n dia-es-poc
 
 clusterName: es-prod
 fullnameOverride: "es-prod"
@@ -114,25 +112,3 @@ pdb:
     enabled: true
     minAvailable: 2   # keep 2 of 3 ingest pods; model reload on restart takes time
 
-ad:
-  enabled: true
-  existingSecret: "es-prod-ad-secret"
-  domainName: "your-corp.com"
-  url: "ldaps://ad.your-corp.com:636"
-  bindDn: "CN=es-svc,OU=ServiceAccounts,DC=your-corp,DC=com"
-  userSearchBaseDn: "OU=Users,DC=your-corp,DC=com"
-  groupSearchBaseDn: "OU=Groups,DC=your-corp,DC=com"
-  adminGroupDn: "CN=ES-Admins,OU=Groups,DC=your-corp,DC=com"
-  dataUserGroupDn: "CN=ES-DataUsers,OU=Groups,DC=your-corp,DC=com"
-
-# JWT realm -- enable when the API gateway is wired to pass Bearer tokens to ES.
-# Realm chain: native(0) -> jwt1(2) -> ad1(3). Both realms can be active simultaneously.
-# Set jwksetPath to <allowedIssuer>/.well-known/jwks.json (or a local file path for air-gapped).
-jwt:
-  enabled: false   # flip to true once IdP and API gateway are configured
-  allowedIssuer: "https://your-idp.your-corp.com"
-  allowedAudiences:
-    - "es-prod"
-  jwksetPath: "https://your-idp.your-corp.com/.well-known/jwks.json"
-  adminGroup: "ES-Admins"        # must match the 'groups' claim value in JWT tokens
-  dataUserGroup: "ES-DataUsers"
