@@ -180,10 +180,10 @@ STEP {{ $step }} -- Integrate Kibana
   secretMounts:
     - name: es-ca
       secretName: es-ca
-      path: /usr/share/kibana/config/certs
+      path: /usr/share/kibana/config/certs/es-ca
   kibanaConfig:
     kibana.yml: |
-      elasticsearch.ssl.certificateAuthorities: [/usr/share/kibana/config/certs/ca.crt]
+      elasticsearch.ssl.certificateAuthorities: [/usr/share/kibana/config/certs/es-ca/ca.crt]
       elasticsearch.ssl.verificationMode: certificate
   {{- end }}
 

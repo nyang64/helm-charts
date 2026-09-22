@@ -29,9 +29,10 @@ Kibana connects over HTTPS and must trust the cert-manager self-signed CA.
 ```yaml
 # kibana-values-nonprod.yaml
 
-# Pin to the same major.minor as your ES image tag.
-image:
-  tag: "8.17.7"
+# Pin to the same version as your ES image tag.
+# The elastic/kibana chart uses imageTag (top-level), not image.tag.
+# Verify availability first: helm search repo elastic/kibana --versions | grep 8.17
+imageTag: "8.17.7"
 
 replicas: 1
 
@@ -49,15 +50,17 @@ extraEnvs:
         key: token
 
 # Mount the ES CA certificate so Kibana can verify the ES TLS cert.
+# Use a subdirectory -- /usr/share/kibana/config/certs is reserved for
+# Kibana's own TLS serving certs and conflicts if mounted at the same path.
 secretMounts:
   - name: es-ca
     secretName: es-ca           # created by the ES runbook step
-    path: /usr/share/kibana/config/certs
+    path: /usr/share/kibana/config/certs/es-ca
 
 kibanaConfig:
   kibana.yml: |
     # Trust the cert-manager self-signed CA used by the ES cluster.
-    elasticsearch.ssl.certificateAuthorities: [/usr/share/kibana/config/certs/ca.crt]
+    elasticsearch.ssl.certificateAuthorities: [/usr/share/kibana/config/certs/es-ca/ca.crt]
     elasticsearch.ssl.verificationMode: certificate
 
     # Encryption keys are required for alerts, saved objects, and reporting.
@@ -100,8 +103,7 @@ Then deploy Kibana with:
 ```yaml
 # kibana-values-nonprod-istio.yaml
 
-image:
-  tag: "8.17.7"
+imageTag: "8.17.7"
 
 replicas: 1
 
@@ -145,7 +147,8 @@ helm install kibana elastic/kibana \
   -f kibana-values-nonprod.yaml \
   -n kibana \
   --create-namespace \
-  --version 8.17.7   # pin chart version to match ES
+  --version 8.17.7   # chart version matches app version; verify with:
+                     # helm search repo elastic/kibana --versions | grep 8.17
 ```
 
 ## Verify

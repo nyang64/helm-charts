@@ -176,7 +176,7 @@ tls:
 #     cluster.routing.allocation.disk.watermark.low: "85%"
 #     cluster.routing.allocation.disk.watermark.high: "90%"
 #     cluster.routing.allocation.disk.watermark.flood_stage: "95%"
-#     indices.memory.index_buffer_size: 20
+#     indices.memory.index_buffer_size: "256mb"   # accepts byte units or % (e.g. "10%")
 #     reindex.remote.whitelist: "otherhost:9200"
 esConfig: {}
 
