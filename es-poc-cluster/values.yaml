@@ -180,6 +180,62 @@ tls:
 #     reindex.remote.whitelist: "otherhost:9200"
 esConfig: {}
 
+# Snapshot repository and Snapshot Lifecycle Management (SLM).
+# Snapshots protect against logical corruption, accidental deletes, and full
+# cluster loss -- scenarios where replicas offer no protection. The repository
+# must live outside the cluster (S3, GCS, Azure Blob) so it survives a total
+# cluster failure.
+#
+# After deploying with snapshot.enabled=true, follow the NOTES runbook step to
+# register the repository and create the SLM policy via the ES API.
+snapshot:
+  enabled: false
+  repository:
+    name: "backup"          # ES internal name used in _snapshot/<name> API calls
+    type: "s3"              # s3 | gcs | azure
+    s3:
+      bucket: ""            # S3 bucket name -- must exist before repo registration
+      basePath: "elasticsearch"   # key prefix within the bucket
+      # endpoint: S3-compatible host (no protocol prefix) for on-prem backends
+      # (NetApp ONTAP S3, StorageGRID, MinIO, etc.). Leave empty for AWS S3 -- the
+      # SDK resolves the regional endpoint from the bucket automatically.
+      # Example: "netapp-hpos.your-corp.internal"
+      endpoint: ""
+      pathStyleAccess: true     # true for on-prem S3; false for AWS virtual-hosted style
+      protocol: "https"
+      # credentialsSecret: K8s secret holding S3 access credentials for on-prem S3.
+      # Mutually exclusive with irsa.roleArn. Secret must have keys: access_key, secret_key.
+      # Create with:
+      #   kubectl create secret generic es-snapshot-s3-creds \
+      #     --from-literal=access_key=<key> \
+      #     --from-literal=secret_key=<secret> -n <namespace>
+      # The chart provisions a keystore-init container that loads these into the ES keystore
+      # on every pod start -- credentials are never stored in plaintext on disk.
+      credentialsSecret: ""
+      # irsa.roleArn: AWS EKS only. ES pods assume this IAM role via IRSA without any static
+      # credentials. Mutually exclusive with credentialsSecret.
+      # Requires serviceAccount.automountServiceAccountToken: true.
+      # Required IAM actions: s3:GetObject, s3:PutObject, s3:DeleteObject, s3:ListBucket,
+      # s3:GetBucketLocation, s3:ListBucketMultipartUploads, s3:ListMultipartUploadParts,
+      # s3:AbortMultipartUpload
+      irsa:
+        roleArn: ""         # e.g. "arn:aws:iam::123456789012:role/es-snapshot-role"
+    gcs:
+      bucket: ""            # GCS bucket name
+      basePath: "elasticsearch"
+      # Use GKE Workload Identity -- annotate the ServiceAccount externally.
+      # No credentials in this chart; GCS plugin reads the metadata server.
+    azure:
+      container: ""         # Azure Blob container name
+      basePath: "elasticsearch"
+      # Use AKS Managed Identity -- no credentials in this chart.
+  slm:
+    schedule: "0 30 1 * * ?"   # ES cron (UTC) -- default: daily at 01:30
+    retention:
+      expireAfter: "30d"    # delete snapshots older than this
+      minCount: 5           # always keep at least this many regardless of expiry
+      maxCount: 50          # never keep more than this many
+
 # Kibana integration.
 # Set namespace to the K8s namespace where Kibana is deployed.
 # When set, the NOTES runbook includes a step for creating the ES service account token

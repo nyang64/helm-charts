@@ -107,6 +107,64 @@
         "namespace": { "type": "string" }
       }
     },
+    "snapshot": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "repository": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "type": { "type": "string", "enum": ["s3", "gcs", "azure"] },
+            "s3": {
+              "type": "object",
+              "properties": {
+                "bucket": { "type": "string" },
+                "basePath": { "type": "string" },
+                "endpoint": { "type": "string", "description": "On-prem S3 host (no protocol prefix)" },
+                "pathStyleAccess": { "type": "boolean" },
+                "protocol": { "type": "string", "enum": ["https", "http"] },
+                "credentialsSecret": { "type": "string" },
+                "irsa": {
+                  "type": "object",
+                  "properties": {
+                    "roleArn": { "type": "string" }
+                  }
+                }
+              }
+            },
+            "gcs": {
+              "type": "object",
+              "properties": {
+                "bucket": { "type": "string" },
+                "basePath": { "type": "string" }
+              }
+            },
+            "azure": {
+              "type": "object",
+              "properties": {
+                "container": { "type": "string" },
+                "basePath": { "type": "string" }
+              }
+            }
+          }
+        },
+        "slm": {
+          "type": "object",
+          "properties": {
+            "schedule": { "type": "string" },
+            "retention": {
+              "type": "object",
+              "properties": {
+                "expireAfter": { "type": "string" },
+                "minCount": { "type": "integer", "minimum": 0 },
+                "maxCount": { "type": "integer", "minimum": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
     "ml": {
       "type": "object",
       "properties": {

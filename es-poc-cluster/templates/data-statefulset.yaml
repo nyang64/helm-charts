@@ -40,8 +40,9 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       {{- include "es-poc-cluster.antiAffinity" (list . "data" .Values.data.antiAffinity) | nindent 6 }}
-      {{- if .Values.sysctl.enabled }}
+      {{- if or .Values.sysctl.enabled (and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") .Values.snapshot.repository.s3.credentialsSecret) }}
       initContainers:
+        {{- if .Values.sysctl.enabled }}
         - name: sysctl
           image: busybox:1.36.1
           securityContext:
@@ -49,6 +50,8 @@ spec:
             runAsUser: 0
             runAsNonRoot: false
           command: ["sysctl", "-w", "vm.max_map_count=262144"]
+        {{- end }}
+        {{- include "es-poc-cluster.keystoreInitContainer" . | nindent 8 }}
       {{- end }}
       containers:
         - name: elasticsearch
@@ -125,6 +128,7 @@ spec:
               mountPath: /usr/share/elasticsearch/config/certs
               readOnly: true
             {{- end }}
+            {{- include "es-poc-cluster.keystoreVolumeMount" . | nindent 12 }}
       volumes:
         - name: es-config
           configMap:
@@ -137,6 +141,7 @@ spec:
           secret:
             secretName: {{ include "es-poc-cluster.tlsSecretName" . }}
         {{- end }}
+        {{- include "es-poc-cluster.keystoreVolume" . | nindent 8 }}
   volumeClaimTemplates:
     - metadata:
         name: data

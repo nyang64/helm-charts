@@ -122,3 +122,69 @@ Generate comma-separated list of master pod names for cluster.initial_master_nod
   {{- $fullname }}-master-{{ $i -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+S3 keystore init container.
+Loads access_key and secret_key from a K8s secret into the ES keystore on every pod start.
+Credentials are never stored in plaintext on disk -- only the keystore (AES-encrypted) is written.
+Enabled only when snapshot.repository.s3.credentialsSecret is set.
+*/}}
+{{- define "es-poc-cluster.keystoreInitContainer" -}}
+{{- if and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") .Values.snapshot.repository.s3.credentialsSecret -}}
+- name: keystore-init
+  image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+  imagePullPolicy: {{ .Values.image.pullPolicy }}
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop:
+        - ALL
+  command:
+    - /bin/sh
+    - -c
+    - |
+      elasticsearch-keystore create
+      printf '%s' "${S3_ACCESS_KEY}" | elasticsearch-keystore add --stdin s3.client.default.access_key
+      printf '%s' "${S3_SECRET_KEY}" | elasticsearch-keystore add --stdin s3.client.default.secret_key
+      cp /usr/share/elasticsearch/config/elasticsearch.keystore /keystore-vol/
+  env:
+    - name: S3_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: {{ .Values.snapshot.repository.s3.credentialsSecret }}
+          key: access_key
+    - name: S3_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: {{ .Values.snapshot.repository.s3.credentialsSecret }}
+          key: secret_key
+  volumeMounts:
+    - name: keystore
+      mountPath: /keystore-vol
+{{- end -}}
+{{- end }}
+
+{{/*
+Keystore volumeMount for the main ES container.
+Mounts the keystore file written by keystoreInitContainer via a shared emptyDir.
+*/}}
+{{- define "es-poc-cluster.keystoreVolumeMount" -}}
+{{- if and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") .Values.snapshot.repository.s3.credentialsSecret -}}
+- name: keystore
+  mountPath: /usr/share/elasticsearch/config/elasticsearch.keystore
+  subPath: elasticsearch.keystore
+  readOnly: true
+{{- end -}}
+{{- end }}
+
+{{/*
+Keystore emptyDir volume -- shared between keystoreInitContainer and the main ES container.
+*/}}
+{{- define "es-poc-cluster.keystoreVolume" -}}
+{{- if and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") .Values.snapshot.repository.s3.credentialsSecret -}}
+- name: keystore
+  emptyDir: {}
+{{- end -}}
+{{- end }}

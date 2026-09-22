@@ -102,3 +102,26 @@ pdb:
   ingest:
     enabled: false   # 1 replica -- PDB would block all voluntary disruptions
 
+# Snapshot / backup -- NetApp HPOS S3 on-prem.
+# Pre-requisite:
+#   kubectl create secret generic es-snapshot-s3-creds \
+#     --from-literal=access_key=<hpos-access-key> \
+#     --from-literal=secret_key=<hpos-secret-key> -n <namespace>
+snapshot:
+  enabled: true
+  repository:
+    name: "backup"
+    type: "s3"
+    s3:
+      bucket: "es-sandbox-snapshots"
+      endpoint: "netapp-hpos.your-corp.internal"   # update to actual NetApp HPOS endpoint
+      pathStyleAccess: true
+      protocol: "https"
+      credentialsSecret: "es-snapshot-s3-creds"
+  slm:
+    schedule: "0 30 2 * * ?"    # daily at 02:30 UTC
+    retention:
+      expireAfter: "7d"          # shorter retention for sandbox
+      minCount: 3
+      maxCount: 10
+

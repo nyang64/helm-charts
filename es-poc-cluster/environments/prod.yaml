@@ -112,3 +112,26 @@ pdb:
     enabled: true
     minAvailable: 2   # keep 2 of 3 ingest pods; model reload on restart takes time
 
+# Snapshot / backup -- NetApp HPOS S3 on-prem.
+# Pre-requisite:
+#   kubectl create secret generic es-snapshot-s3-creds \
+#     --from-literal=access_key=<hpos-access-key> \
+#     --from-literal=secret_key=<hpos-secret-key> -n <namespace>
+snapshot:
+  enabled: true
+  repository:
+    name: "backup"
+    type: "s3"
+    s3:
+      bucket: "es-prod-snapshots"
+      endpoint: "netapp-hpos.your-corp.internal"   # update to actual NetApp HPOS endpoint
+      pathStyleAccess: true
+      protocol: "https"
+      credentialsSecret: "es-snapshot-s3-creds"
+  slm:
+    schedule: "0 30 1 * * ?"    # daily at 01:30 UTC
+    retention:
+      expireAfter: "30d"
+      minCount: 5
+      maxCount: 50
+

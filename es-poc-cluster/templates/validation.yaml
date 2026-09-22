@@ -36,6 +36,36 @@ not at Elasticsearch startup time inside the cluster.
 {{- fail "Invalid configuration: ad.enabled and jwt.enabled are no longer supported by this chart. AD and JWT realm support was removed in v0.4.0. Remove these keys from your values file. Use API keys for application authentication." }}
 {{- end }}
 
+{{- if .Values.snapshot.enabled }}
+{{- if not .Values.snapshot.repository.type }}
+{{- fail "Invalid configuration: snapshot.enabled=true requires snapshot.repository.type (s3, gcs, or azure)." }}
+{{- end }}
+{{- if eq .Values.snapshot.repository.type "s3" }}
+{{- if not .Values.snapshot.repository.s3.bucket }}
+{{- fail "Invalid configuration: snapshot.repository.type=s3 requires snapshot.repository.s3.bucket." }}
+{{- end }}
+{{- if and .Values.snapshot.repository.s3.credentialsSecret .Values.snapshot.repository.s3.irsa.roleArn }}
+{{- fail "Invalid configuration: snapshot.repository.s3.credentialsSecret and irsa.roleArn are mutually exclusive. Use credentialsSecret for on-prem S3 (NetApp HPOS, MinIO) or irsa.roleArn for AWS EKS." }}
+{{- end }}
+{{- if and .Values.snapshot.repository.s3.credentialsSecret (not .Values.snapshot.repository.s3.endpoint) }}
+{{- fail "Invalid configuration: snapshot.repository.s3.endpoint is required when credentialsSecret is set. On-prem S3 requires an explicit endpoint (e.g. 'netapp-hpos.your-corp.internal'). AWS IRSA users omit this field." }}
+{{- end }}
+{{- if and .Values.snapshot.repository.s3.irsa.roleArn (not .Values.serviceAccount.automountServiceAccountToken) }}
+{{- fail "Invalid configuration: snapshot.repository.s3.irsa.roleArn requires serviceAccount.automountServiceAccountToken=true -- the AWS SDK needs the projected service account token to exchange for AWS credentials via IRSA." }}
+{{- end }}
+{{- end }}
+{{- if eq .Values.snapshot.repository.type "gcs" }}
+{{- if not .Values.snapshot.repository.gcs.bucket }}
+{{- fail "Invalid configuration: snapshot.repository.type=gcs requires snapshot.repository.gcs.bucket." }}
+{{- end }}
+{{- end }}
+{{- if eq .Values.snapshot.repository.type "azure" }}
+{{- if not .Values.snapshot.repository.azure.container }}
+{{- fail "Invalid configuration: snapshot.repository.type=azure requires snapshot.repository.azure.container." }}
+{{- end }}
+{{- end }}
+{{- end }}
+
 {{/* Lookup-based prereq checks -- these run against a real cluster during helm install/upgrade.
      During 'helm template' (no cluster access), lookup returns {} and checks are skipped. */}}
 {{- $clusterReachable := lookup "v1" "Namespace" "" .Release.Namespace }}
