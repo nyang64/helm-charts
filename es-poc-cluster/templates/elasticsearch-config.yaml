@@ -14,7 +14,7 @@ data:
     {{- if .Values.tls.enabled }}
     # xpack.security.ssl.reload.enabled: ES watches cert files on disk and hot-reloads them
     # when cert-manager rotates the Secret, without requiring a pod restart.
-    # Documented in ES 8.x: https://www.elastic.co/guide/en/elasticsearch/reference/8.17/security-settings.html
+    # Documented in ES 8.x: https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-settings.html
     # If this causes startup errors on your ES version, remove it and use the reload API instead:
     #   POST /_nodes/reload_secure_settings
     xpack.security.ssl.reload.enabled: true
@@ -36,6 +36,9 @@ data:
     {{- if and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") }}
     {{- if .Values.snapshot.repository.s3.endpoint }}
     s3.client.default.endpoint: {{ .Values.snapshot.repository.s3.endpoint | quote }}
+    {{- end }}
+    {{- if .Values.snapshot.repository.s3.region }}
+    s3.client.default.region: {{ .Values.snapshot.repository.s3.region | quote }}
     {{- end }}
     s3.client.default.path_style_access: {{ .Values.snapshot.repository.s3.pathStyleAccess }}
     s3.client.default.protocol: {{ .Values.snapshot.repository.s3.protocol | quote }}

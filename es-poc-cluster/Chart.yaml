@@ -3,7 +3,7 @@ name: es-poc-cluster
 description: Elasticsearch cluster with master, data, and ingest roles -- secured with TLS, xpack.security, and API key authentication
 type: application
 version: 0.4.0
-appVersion: "8.17.7"
+appVersion: "8.19.18"
 annotations:
   artifacthub.io/prereqs: |
     - cert-manager v1.x must be installed when tls.enabled=true

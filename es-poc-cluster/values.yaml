@@ -6,7 +6,7 @@ image:
   # tag: pin to an exact patch version in production. Mutable tags (e.g. "8.17") mean
   # `helm upgrade` may silently roll all pods to a newer ES version when nodes pull a fresh image,
   # potentially causing a rolling upgrade without operator awareness.
-  tag: "8.17.7"
+  tag: "8.19.18"
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -205,6 +205,10 @@ snapshot:
       # SDK resolves the regional endpoint from the bucket automatically.
       # Example: "netapp-hpos.your-corp.internal"
       endpoint: ""
+      # region: required in ES 8.19+ -- AWS SDK v2 no longer infers region from the endpoint.
+      # For on-prem S3 (NetApp HPOS, MinIO), use any placeholder (e.g. "us-east-1" or "default").
+      # For AWS S3, use the actual bucket region.
+      region: "us-east-1"
       pathStyleAccess: true     # true for on-prem S3; false for AWS virtual-hosted style
       protocol: "https"
       # credentialsSecret: K8s secret holding S3 access credentials for on-prem S3.
@@ -320,5 +324,5 @@ ml:
   # Set true when using self-signed certs (the default cert-manager setup in this chart).
   insecure: true
   # eland does not publish patch-level images; tag tracks ES major.minor only.
-  elandImage: "docker.elastic.co/eland/eland:8.17.0"
+  elandImage: "docker.elastic.co/eland/eland:8.19.0"
 
