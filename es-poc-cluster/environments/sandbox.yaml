@@ -1,22 +1,40 @@
 # Sandbox -- 500 GB raw x 3 replicas = 1.5 TB total across 2 data pods (~750 GB each, rounded to 1Ti).
-# Security and TLS disabled so no cert-manager or secrets are required.
+# Security posture matches nonprod/prod: xpack.security on, TLS on, Istio mTLS.
 # Usage: helm template es-poc-cluster . -f environments/sandbox.yaml
+#
+# Pre-requisites:
+#   cert-manager must be installed (for transport TLS)
+#   Istio must be installed
+#   kubectl create secret generic es-sandbox-elastic-secret \
+#     --from-literal=ELASTIC_PASSWORD=<strong-password> -n <namespace>
 
 clusterName: es-sandbox
 fullnameOverride: "es-sandbox"
 
 istio:
-  enabled: false   # sandbox has no Istio -- plain HTTP on port 9200
+  enabled: true   # Istio handles HTTP TLS (9200); cert-manager handles transport TLS (9300)
+  gateway:
+    selector:
+      istio: ingressgateway
+    hostname: ""   # no external hostname for sandbox -- use port-forward for access
+    tls:
+      mode: SIMPLE
+      credentialName: ""
 
 # Disable privileged sysctl init container -- set vm.max_map_count on the node instead.
 sysctl:
   enabled: false
 
 security:
-  enabled: false   # xpack.security off -- do not enable in shared environments
+  enabled: true
 
 tls:
-  enabled: false   # requires security.enabled=true; both must be false together
+  enabled: true
+  secretName: "es-sandbox-tls"
+  issuerName: "es-sandbox-issuer"
+
+elasticPassword:
+  existingSecret: "es-sandbox-elastic-secret"
 
 # Master -- 1 node, minimal: tracks 2 data nodes + a handful of shards
 master:
