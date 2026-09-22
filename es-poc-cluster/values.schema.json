@@ -96,6 +96,12 @@
         }
       }
     },
+    "kibana": {
+      "type": "object",
+      "properties": {
+        "namespace": { "type": "string" }
+      }
+    },
     "ml": {
       "type": "object",
       "properties": {

@@ -119,6 +119,81 @@ STEP {{ $step }} -- Create an application API key
   Authorization: ApiKey <base64(id:api_key)>
 {{- end }}
 
+{{- if .Values.kibana.namespace }}
+{{- $step = add $step 1 }}
+
+
+STEP {{ $step }} -- Integrate Kibana
+------------------------------------
+  Kibana authenticates to ES using a service account token -- a long-lived credential
+  scoped to the built-in elastic/kibana service account (kibana_system privileges).
+  Unlike a password, the token is stored in ES as a SHA-256 hash and can be revoked
+  per-instance without touching any password. ES supports multiple tokens for the same
+  service account, so you can rotate by creating a new one and deleting the old --
+  zero-downtime credential rotation.
+
+  1. Create the token (run as elastic after cluster is healthy):
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
+    -X POST "$ES_URL/_security/service/elastic/kibana/credential/token/kibana-1?pretty"
+  # SAVE the "value" field from the response immediately.
+  # ES stores only the hash -- the plaintext token is shown exactly once.
+  # To rotate later: POST a new token name (kibana-2, etc.) then DELETE the old one.
+
+  2. Store the token as a K8s secret in the Kibana namespace:
+  kubectl create secret generic kibana-es-token \
+    --from-literal=token="<value-from-above>" \
+    -n {{ .Values.kibana.namespace }}
+
+  {{- if and .Values.tls.enabled (not .Values.istio.enabled) }}
+
+  3. Copy the ES CA certificate to the Kibana namespace (Kibana must verify ES TLS):
+  kubectl get secret {{ include "es-poc-cluster.tlsSecretName" . }} \
+    -n {{ .Release.Namespace }} \
+    -o jsonpath='{.data.ca\.crt}' | base64 -d | \
+    kubectl create secret generic es-ca \
+      --from-file=ca.crt=/dev/stdin \
+      -n {{ .Values.kibana.namespace }}
+
+  {{- end }}
+  {{- if .Values.istio.enabled }}
+
+  Istio: add {{ .Values.kibana.namespace | quote }} to istio.allowedNamespaces in your
+  values overlay so the AuthorizationPolicy permits Kibana pods to reach ES on port 9200:
+    istio:
+      allowedNamespaces: [{{ .Values.kibana.namespace | quote }}]
+
+  {{- end }}
+
+  4. Minimal elastic/kibana chart values:
+  # helm repo add elastic https://helm.elastic.co
+  # helm install kibana elastic/kibana -f kibana-values.yaml -n {{ .Values.kibana.namespace }}
+  #
+  # kibana-values.yaml:
+  elasticsearchHosts: "{{ include "es-poc-cluster.httpScheme" . }}://{{ include "es-poc-cluster.fullname" . }}-ingest.{{ .Release.Namespace }}.svc:9200"
+  extraEnvs:
+    - name: ELASTICSEARCH_SERVICEACCOUNTTOKEN
+      valueFrom:
+        secretKeyRef:
+          name: kibana-es-token
+          key: token
+  {{- if and .Values.tls.enabled (not .Values.istio.enabled) }}
+  secretMounts:
+    - name: es-ca
+      secretName: es-ca
+      path: /usr/share/kibana/config/certs
+  kibanaConfig:
+    kibana.yml: |
+      elasticsearch.ssl.certificateAuthorities: [/usr/share/kibana/config/certs/ca.crt]
+      elasticsearch.ssl.verificationMode: certificate
+  {{- end }}
+
+  5. Verify the token works before starting Kibana:
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
+    -H "Authorization: Bearer <value-from-step-1>" \
+    "$ES_URL/_security/_authenticate?pretty"
+  # Expected: username = "kibana", roles = ["kibana_system"]
+{{- end }}
+
 {{ if .Values.ingest.mlEnabled -}}
 {{- $step = add $step 1 }}
 STEP {{ $step }} -- Load the embedding model ({{ .Values.ml.modelId }})

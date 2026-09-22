@@ -150,6 +150,7 @@ istio:
   # (application pods, batch jobs, etc.) that call ES directly over east-west Istio mTLS.
   # The AuthorizationPolicy controls network access;
   # ES xpack security controls what the caller is allowed to do once connected.
+  # Add Kibana's namespace here when istio.enabled=true (see kibana.namespace below).
   allowedNamespaces: []
   # Example:
   #   allowedNamespaces:
@@ -162,6 +163,15 @@ tls:
   issuerName: ""    # defaults to <fullname>-issuer; must match the cert-manager Issuer you deploy
   duration: "8760h"     # 1 year cert validity; cert-manager default is 90 days
   renewBefore: "720h"   # begin renewal 30 days before expiry; allows time for rolling restart
+
+# Kibana integration.
+# Set namespace to the K8s namespace where Kibana is deployed.
+# When set, the NOTES runbook includes a step for creating the ES service account token
+# and wiring it into the elastic/kibana Helm chart.
+# When istio.enabled=true, also add this namespace to istio.allowedNamespaces so the
+# Istio AuthorizationPolicy permits Kibana pods to reach ES on port 9200.
+kibana:
+  namespace: ""   # e.g. "kibana" or "elastic"
 
 probes:
   startup:
