@@ -266,6 +266,20 @@ kibana:
     # existingSecret: K8s Secret in the release namespace with key: token.
     # Required when kibana.enabled=true. Create before running helm install/upgrade.
     existingSecret: ""
+  encryptionKeys:
+    # existingSecret: K8s Secret holding three stable random keys Kibana uses for
+    # encrypted sessions, saved objects (alerts, connectors), and reporting jobs.
+    # Without this, Kibana generates random keys on every restart -- all active
+    # sessions are invalidated and encrypted saved objects cannot be decrypted
+    # by a different pod. REQUIRED for any persistent or multi-replica deployment.
+    # Keys: security, savedObjects, reporting (each >= 32 random chars).
+    # Create with:
+    #   kubectl create secret generic kibana-encryption-keys \
+    #     --from-literal=security="$(openssl rand -hex 32)" \
+    #     --from-literal=savedObjects="$(openssl rand -hex 32)" \
+    #     --from-literal=reporting="$(openssl rand -hex 32)" \
+    #     -n <namespace>
+    existingSecret: ""
   antiAffinity: "preferred"
   resources:
     requests:

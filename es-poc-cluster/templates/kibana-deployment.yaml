@@ -59,6 +59,23 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.kibana.serviceAccountToken.existingSecret }}
                   key: token
+            {{- if .Values.kibana.encryptionKeys.existingSecret }}
+            - name: XPACK_SECURITY_ENCRYPTIONKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kibana.encryptionKeys.existingSecret }}
+                  key: security
+            - name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kibana.encryptionKeys.existingSecret }}
+                  key: savedObjects
+            - name: XPACK_REPORTING_ENCRYPTIONKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kibana.encryptionKeys.existingSecret }}
+                  key: reporting
+            {{- end }}
           resources:
             {{- toYaml .Values.kibana.resources | nindent 12 }}
           startupProbe:

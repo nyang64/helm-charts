@@ -189,26 +189,44 @@ STEP {{ $step }} -- Register snapshot repository and create SLM policy
     -H "Content-Type: application/json" -d '{"include_global_state": false}'
 {{- end }}
 
-{{- if .Values.kibana.enabled }}
 {{- $step = add $step 1 }}
 
 
-STEP {{ $step }} -- Start Kibana
----------------------------------
-  Kibana is deployed in this release (same namespace as ES). It authenticates via a
-  service account token scoped to the built-in elastic/kibana account. The token is
-  stored in ES as a SHA-256 hash -- the plaintext is shown once at creation time.
+STEP {{ $step }} -- Enable Kibana
+----------------------------------
+{{- if .Values.kibana.enabled }}
+  Kibana is active in this release. Access it:
+  kubectl rollout status deployment/{{ include "es-poc-cluster.fullname" . }}-kibana \
+    -n {{ .Release.Namespace }}
+  kubectl port-forward svc/{{ include "es-poc-cluster.fullname" . }}-kibana 5601:5601 \
+    -n {{ .Release.Namespace }}
+  # Open: http://localhost:5601 -- log in as elastic / <ELASTIC_PASSWORD>
 
-  Prerequisite: complete STEP 1 (ES healthy) before proceeding.
+  Token rotation (zero-downtime -- new token, update secret, delete old):
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
+    -X POST "$ES_URL/_security/service/elastic/kibana/credential/token/kibana-2?pretty"
+  # Save the new "value", then update the secret:
+  kubectl create secret generic {{ .Values.kibana.serviceAccountToken.existingSecret }} \
+    --from-literal=token="<new-value>" \
+    --dry-run=client -o yaml | kubectl apply -f - -n {{ .Release.Namespace }}
+  # Upgrade to trigger rolling restart (checksum annotation detects the secret change):
+  helm upgrade {{ .Release.Name }} . -f environments/<your-env>.yaml -n {{ .Release.Namespace }}
+  # Once Kibana is healthy with the new token, revoke the old one:
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
+    -X DELETE "$ES_URL/_security/service/elastic/kibana/credential/token/kibana-1?pretty"
+{{- else }}
+  Kibana is included in this chart but not yet active (kibana.enabled=false).
+  Complete these 3 steps after STEP 1 (ES healthy and all pods Ready):
 
-  1. Create the service account token:
+  1. Create the ES service account token (run as elastic):
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     -X POST "$ES_URL/_security/service/elastic/kibana/credential/token/kibana-1?pretty"
-  # SAVE the "value" field immediately -- ES stores only the hash, never the plaintext again.
+  # SAVE the "value" field from the response immediately.
+  # ES stores only the SHA-256 hash -- the plaintext is shown exactly once.
 
-  2. Store the token as a K8s Secret in the ES namespace:
+  2. Create a K8s Secret with the token:
   kubectl create secret generic kibana-es-token \
-    --from-literal=token="<value-from-above>" \
+    --from-literal=token="<value-from-step-1>" \
     -n {{ .Release.Namespace }}
 
   3. Upgrade the release to enable Kibana:
@@ -218,28 +236,13 @@ STEP {{ $step }} -- Start Kibana
     --set kibana.serviceAccountToken.existingSecret=kibana-es-token \
     -n {{ .Release.Namespace }}
 
-  4. Wait for Kibana to be ready:
-  kubectl rollout status deployment/{{ include "es-poc-cluster.fullname" . }}-kibana \
-    -n {{ .Release.Namespace }}
-
-  5. Access Kibana (port-forward for local access):
+  Access Kibana after the rollout completes:
   kubectl port-forward svc/{{ include "es-poc-cluster.fullname" . }}-kibana 5601:5601 \
     -n {{ .Release.Namespace }}
-  # Open: http://localhost:5601
-  # Login: elastic / <ELASTIC_PASSWORD>
+  # Open: http://localhost:5601 -- log in as elastic / <ELASTIC_PASSWORD>
 
-  Token rotation (zero-downtime):
-  # Create a new token, update the secret, then delete the old token:
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    -X POST "$ES_URL/_security/service/elastic/kibana/credential/token/kibana-2?pretty"
-  kubectl create secret generic kibana-es-token \
-    --from-literal=token="<new-value>" \
-    --dry-run=client -o yaml | kubectl apply -f - -n {{ .Release.Namespace }}
-  # Kibana pods pick up the new token on the next rollout (checksum annotation triggers it
-  # automatically on the next helm upgrade).
-  # Once the new token is active, delete the old one:
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    -X DELETE "$ES_URL/_security/service/elastic/kibana/credential/token/kibana-1?pretty"
+  See docs/kibana-setup.md for encryption keys (required for alerts and saved objects)
+  and full token rotation instructions.
 {{- end }}
 
 {{ if .Values.ingest.mlEnabled -}}

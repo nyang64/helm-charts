@@ -1,232 +1,157 @@
 # Kibana Setup Guide
 
-Kibana is deployed as a **separate Helm chart** (`elastic/kibana`) that points at the
-Elasticsearch cluster managed by this chart. This guide covers the thin overlay needed
-to wire the two together, for both TLS (non-Istio) and Istio mesh deployments.
+Kibana is **deployed by this Helm chart** in the same namespace as Elasticsearch —
+no separate Helm chart, no external dependency. This guide covers first-time setup,
+encryption key management, and token rotation.
+
+## Architecture
+
+| Resource | Name | Notes |
+|----------|------|-------|
+| Deployment | `<release>-kibana` | RollingUpdate, maxUnavailable=0 |
+| Service | `<release>-kibana` | ClusterIP on port 5601 |
+| ConfigMap | `<release>-kibana-config` | kibana.yml (server + SSL config) |
+| NetworkPolicy | `<release>-kibana` | egress → ES:9200 + DNS; ingress → 5601 |
+
+**ES connection:**
+- `istio.enabled=true` → `http://<release>-ingest.<namespace>.svc:9200` (Envoy handles mTLS)
+- `istio.enabled=false` → `https://<release>-ingest.<namespace>.svc:9200` + CA cert mounted
+
+**Authentication:** ES service account token scoped to `elastic/kibana`
+(kibana_system privileges). Token is stored in ES as a SHA-256 hash; the plaintext
+is shown once at creation and stored in a K8s Secret you own.
 
 ## Prerequisites
 
-1. ES cluster is healthy (`kubectl get pods -n <es-namespace>` — all pods Running/Ready).
-2. You have completed the **Kibana integration step** in the ES post-install runbook
-   (`helm get notes <release> -n <es-namespace>`), which produces:
-   - A `kibana-es-token` secret in the Kibana namespace (the service account token).
-   - A `es-ca` secret in the Kibana namespace (the ES CA cert) — **TLS path only**.
+1. ES cluster is healthy — all pods Running/Ready (`kubectl get pods -n <namespace>`).
+2. You have completed STEP 1 and STEP 2 of the post-install runbook
+   (`helm get notes <release> -n <namespace>`).
 
-## Add the Elastic Helm repository
+## Step 1 — Create the ES service account token
 
-```bash
-helm repo add elastic https://helm.elastic.co
-helm repo update
-```
-
-## Overlay variants
-
-### Variant A — TLS enabled, no Istio
-
-Use this when `tls.enabled=true` and `istio.enabled=false` in your ES chart values.
-Kibana connects over HTTPS and must trust the cert-manager self-signed CA.
-
-```yaml
-# kibana-values-nonprod.yaml
-
-# Pin to the same version as your ES image tag.
-# The elastic/kibana chart uses imageTag (top-level), not image.tag.
-# Verify availability first: helm search repo elastic/kibana --versions | grep 8.17
-imageTag: "8.17.7"
-
-replicas: 1
-
-# ES ingest service — use the fully-qualified in-cluster DNS name.
-# Replace <es-release> and <es-namespace> with your actual values.
-elasticsearchHosts: "https://<es-release>-ingest.<es-namespace>.svc:9200"
-
-# Service account token -- never hardcode; always reference the K8s secret
-# created in the post-install runbook.
-extraEnvs:
-  - name: ELASTICSEARCH_SERVICEACCOUNTTOKEN
-    valueFrom:
-      secretKeyRef:
-        name: kibana-es-token   # created by the ES runbook step
-        key: token
-
-# Mount the ES CA certificate so Kibana can verify the ES TLS cert.
-# Use a subdirectory -- /usr/share/kibana/config/certs is reserved for
-# Kibana's own TLS serving certs and conflicts if mounted at the same path.
-secretMounts:
-  - name: es-ca
-    secretName: es-ca           # created by the ES runbook step
-    path: /usr/share/kibana/config/certs/es-ca
-
-kibanaConfig:
-  kibana.yml: |
-    # Trust the cert-manager self-signed CA used by the ES cluster.
-    elasticsearch.ssl.certificateAuthorities: [/usr/share/kibana/config/certs/es-ca/ca.crt]
-    elasticsearch.ssl.verificationMode: certificate
-
-    # Encryption keys are required for alerts, saved objects, and reporting.
-    # Generate with: openssl rand -hex 32
-    # Store in a vault -- do not commit plaintext keys to source control.
-    xpack.security.encryptionKey: "<32-char-random-hex>"
-    xpack.encryptedSavedObjects.encryptionKey: "<32-char-random-hex>"
-    xpack.reporting.encryptionKey: "<32-char-random-hex>"
-
-resources:
-  requests:
-    cpu: "500m"
-    memory: "1Gi"
-  limits:
-    cpu: "1000m"
-    memory: "1Gi"
-
-service:
-  type: ClusterIP   # expose via Ingress or port-forward; do not use LoadBalancer in shared clusters
-```
-
-### Variant B — Istio mesh (mTLS)
-
-Use this when `istio.enabled=true` in your ES chart values. Kibana connects over plain
-HTTP on port 9200 — Istio's Envoy sidecar handles mTLS between pods. No CA cert needed
-on the Kibana side.
-
-Before deploying, ensure Kibana's namespace is in `istio.allowedNamespaces` in your ES
-chart values overlay so the Istio AuthorizationPolicy admits Kibana pods:
-
-```yaml
-# In your ES chart overlay (e.g. environments/nonprod.yaml):
-istio:
-  allowedNamespaces:
-    - "kibana"   # or whatever namespace Kibana runs in
-```
-
-Then deploy Kibana with:
-
-```yaml
-# kibana-values-nonprod-istio.yaml
-
-imageTag: "8.17.7"
-
-replicas: 1
-
-# Plain HTTP -- Istio handles mTLS between Kibana and ES pods.
-elasticsearchHosts: "http://<es-release>-ingest.<es-namespace>.svc:9200"
-
-extraEnvs:
-  - name: ELASTICSEARCH_SERVICEACCOUNTTOKEN
-    valueFrom:
-      secretKeyRef:
-        name: kibana-es-token
-        key: token
-
-# Inject the Istio sidecar into Kibana pods.
-podAnnotations:
-  sidecar.istio.io/inject: "true"
-
-kibanaConfig:
-  kibana.yml: |
-    # No SSL config needed -- Istio handles transport security.
-    xpack.security.encryptionKey: "<32-char-random-hex>"
-    xpack.encryptedSavedObjects.encryptionKey: "<32-char-random-hex>"
-    xpack.reporting.encryptionKey: "<32-char-random-hex>"
-
-resources:
-  requests:
-    cpu: "500m"
-    memory: "1Gi"
-  limits:
-    cpu: "1000m"
-    memory: "1Gi"
-
-service:
-  type: ClusterIP
-```
-
-## Install
+With ES healthy and the `ES_URL` / `ELASTIC_PASSWORD` env vars set from the runbook:
 
 ```bash
-helm install kibana elastic/kibana \
-  -f kibana-values-nonprod.yaml \
-  -n kibana \
-  --create-namespace \
-  --version 8.17.7   # chart version matches app version; verify with:
-                     # helm search repo elastic/kibana --versions | grep 8.17
+curl -sf{{TLS_FLAG}} -u "elastic:${ELASTIC_PASSWORD}" \
+  -X POST "$ES_URL/_security/service/elastic/kibana/credential/token/kibana-1?pretty"
 ```
 
-## Verify
+> **Save the `"value"` field from the response immediately.**  
+> ES stores only the SHA-256 hash — the plaintext token is shown exactly once.
+> If you lose it, create a new token (e.g. `kibana-2`) and delete the old one.
+
+Verify the token authenticates correctly:
 
 ```bash
-# Check Kibana pod is Running
-kubectl get pods -n kibana
-
-# Port-forward and open in browser
-kubectl port-forward svc/kibana-kibana 5601:5601 -n kibana
-# Open https://localhost:5601 (or http:// for Istio path)
-# Log in as elastic with the bootstrap password from the ES runbook
+curl -sf{{TLS_FLAG}} -H "Authorization: Bearer <value-from-above>" \
+  "$ES_URL/_security/_authenticate?pretty"
+# Expected: "username": "elastic/kibana", "roles": []
+# (service accounts authenticate via the service-account descriptor, not a role)
 ```
 
-## Encryption key management
+## Step 2 — Create the K8s token secret
 
-The three `xpack.*encryptionKey` values must:
+```bash
+kubectl create secret generic kibana-es-token \
+  --from-literal=token="<value-from-step-1>" \
+  -n <namespace>
+```
 
-- Be at least 32 characters of random data (`openssl rand -hex 32`).
-- Stay **consistent across Kibana restarts and replicas** — changing them invalidates
-  all saved alerts and encrypted saved objects. Store them in a secrets manager
-  (Vault, AWS Secrets Manager, etc.) and inject via `extraEnvs` + `secretKeyRef`,
-  not hardcoded in the values file.
-- Be different from each other.
+## Step 3 — Create encryption key secrets (required for production)
 
-Recommended production pattern — store keys in a K8s secret and reference them:
+Kibana requires three stable random keys for:
+- **`security`** — encrypted session cookies; changing this logs out all users
+- **`savedObjects`** — encrypted saved objects (alerting rules, connectors); changing this
+  corrupts existing alerts and connectors
+- **`reporting`** — encrypted reporting jobs
+
+Without these keys, Kibana generates random values on every restart — sessions and saved
+objects are lost whenever a pod restarts or a rolling update occurs.
 
 ```bash
 kubectl create secret generic kibana-encryption-keys \
   --from-literal=security="$(openssl rand -hex 32)" \
-  --from-literal=encryptedSavedObjects="$(openssl rand -hex 32)" \
+  --from-literal=savedObjects="$(openssl rand -hex 32)" \
   --from-literal=reporting="$(openssl rand -hex 32)" \
-  -n kibana
+  -n <namespace>
 ```
+
+> **Store these in a secrets manager** (Vault, AWS Secrets Manager, etc.) before deleting
+> the terminal history. If lost, existing encrypted saved objects cannot be recovered.
+
+## Step 4 — Enable Kibana via helm upgrade
+
+```bash
+helm upgrade <release> . \
+  -f environments/<your-env>.yaml \
+  --set kibana.enabled=true \
+  --set kibana.serviceAccountToken.existingSecret=kibana-es-token \
+  --set kibana.encryptionKeys.existingSecret=kibana-encryption-keys \
+  -n <namespace>
+```
+
+Or commit the values to your environment overlay and upgrade without `--set`:
 
 ```yaml
-# In kibana-values.yaml, replace kibanaConfig keys with:
-extraEnvs:
-  - name: ELASTICSEARCH_SERVICEACCOUNTTOKEN
-    valueFrom:
-      secretKeyRef:
-        name: kibana-es-token
-        key: token
-  - name: XPACK_SECURITY_ENCRYPTIONKEY
-    valueFrom:
-      secretKeyRef:
-        name: kibana-encryption-keys
-        key: security
-  - name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
-    valueFrom:
-      secretKeyRef:
-        name: kibana-encryption-keys
-        key: encryptedSavedObjects
-  - name: XPACK_REPORTING_ENCRYPTIONKEY
-    valueFrom:
-      secretKeyRef:
-        name: kibana-encryption-keys
-        key: reporting
+# environments/<your-env>.yaml
+kibana:
+  enabled: true
+  serviceAccountToken:
+    existingSecret: "kibana-es-token"
+  encryptionKeys:
+    existingSecret: "kibana-encryption-keys"
 ```
 
-## Token rotation (zero downtime)
+## Step 5 — Access Kibana
 
-The ES service account supports multiple simultaneous tokens. To rotate without downtime:
+```bash
+# Wait for the Deployment rollout
+kubectl rollout status deployment/<release>-kibana -n <namespace>
+
+# Port-forward for local access
+kubectl port-forward svc/<release>-kibana 5601:5601 -n <namespace>
+# Open: http://localhost:5601
+# Log in as: elastic / <ELASTIC_PASSWORD>
+```
+
+For external access, configure an Istio VirtualService (when `istio.enabled=true`)
+or a Kubernetes Ingress pointing at the `<release>-kibana` Service on port 5601.
+
+## Token rotation (zero-downtime)
+
+ES service accounts support multiple simultaneous tokens. To rotate without downtime:
 
 ```bash
 # 1. Create a new token
-curl -sk -u "elastic:${ELASTIC_PASSWORD}" \
+curl -sf{{TLS_FLAG}} -u "elastic:${ELASTIC_PASSWORD}" \
   -X POST "$ES_URL/_security/service/elastic/kibana/credential/token/kibana-2?pretty"
+# Save the new "value".
 
 # 2. Update the K8s secret with the new token value
 kubectl create secret generic kibana-es-token \
   --from-literal=token="<new-value>" \
-  -n kibana --dry-run=client -o yaml | kubectl apply -f -
+  --dry-run=client -o yaml | kubectl apply -f - -n <namespace>
 
-# 3. Restart Kibana to pick up the new secret
-kubectl rollout restart deployment/kibana-kibana -n kibana
+# 3. Upgrade the release -- the checksum annotation on the Deployment detects the
+#    secret change and triggers a rolling restart automatically
+helm upgrade <release> . -f environments/<your-env>.yaml -n <namespace>
 
-# 4. After Kibana is healthy, delete the old token from ES
-curl -sk -u "elastic:${ELASTIC_PASSWORD}" \
-  -X DELETE "$ES_URL/_security/service/elastic/kibana/credential/token/kibana-1"
+# 4. Wait for the rollout to complete, then delete the old token from ES
+kubectl rollout status deployment/<release>-kibana -n <namespace>
+curl -sf{{TLS_FLAG}} -u "elastic:${ELASTIC_PASSWORD}" \
+  -X DELETE "$ES_URL/_security/service/elastic/kibana/credential/token/kibana-1?pretty"
 ```
+
+Both tokens are valid simultaneously during the rollout — zero sessions are dropped.
+
+## Values reference
+
+| Value | Default | Description |
+|-------|---------|-------------|
+| `kibana.enabled` | `false` | Deploy Kibana in this release |
+| `kibana.replicas` | `1` | Number of Kibana pods |
+| `kibana.image.tag` | _(ES version)_ | Kibana image tag; must match ES major.minor |
+| `kibana.serviceAccountToken.existingSecret` | `""` | **Required** when enabled. Key: `token` |
+| `kibana.encryptionKeys.existingSecret` | `""` | Recommended. Keys: `security`, `savedObjects`, `reporting` |
+| `kibana.antiAffinity` | `preferred` | Pod anti-affinity: `required` \| `preferred` \| `disabled` |
+| `kibana.resources` | 500m/1Gi → 1000m/1Gi | CPU/memory requests and limits |

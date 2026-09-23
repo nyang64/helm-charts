@@ -247,6 +247,12 @@
             "existingSecret": { "type": "string" }
           }
         },
+        "encryptionKeys": {
+          "type": "object",
+          "properties": {
+            "existingSecret": { "type": "string" }
+          }
+        },
         "antiAffinity": { "type": "string", "enum": ["required", "preferred", "disabled"] },
         "resources": {
           "type": "object",
