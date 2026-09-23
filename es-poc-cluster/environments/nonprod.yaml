@@ -69,17 +69,16 @@ data:
   storage:
     size: "3Ti"           # 3 TiB per pod (~3.3 TB); 5 pods = 15 Ti total raw
 
-# Ingest+ML -- 2 pods; matches prod heap so pipeline and model behaviour is realistic in testing.
-# 16Gi = 4g heap + ~4Gi JVM overhead + ~8Gi native memory for ML model weights.
+# Ingest -- 2 pods; BYO vector flow (client supplies pre-computed vectors, no on-cluster ML).
 ingest:
   replicas: 2
   heapSize: "4g"
-  mlEnabled: true
+  mlEnabled: false
   antiAffinity: "preferred"
   resources:
     requests:
       cpu: "2000m"
-      memory: "16Gi"     # heap(4g) + JVM overhead + ~8Gi for ML model weights
+      memory: "16Gi"     # can be reduced to ~8Gi (heap*2) now that ML model weights are not loaded
     limits:
       cpu: "4000m"
       memory: "16Gi"

@@ -74,18 +74,16 @@ data:
   storage:
     size: "3Ti"           # 3 TiB per pod (~3.3 TB); 10 pods = 30 Ti total raw
 
-# Ingest+ML -- 3 pods; embedding is now in both read and write paths so we add a third
-# pod for redundancy and to share concurrent query + indexing inference load.
-# 24Gi = 8g heap + ~8Gi JVM overhead/buffers + ~8Gi native memory for ML model weights.
+# Ingest -- 3 pods; BYO vector flow (client supplies pre-computed vectors, no on-cluster ML).
 ingest:
   replicas: 3
   heapSize: "8g"
-  mlEnabled: true
+  mlEnabled: false
   antiAffinity: "preferred"
   resources:
     requests:
-      cpu: "4000m"       # ML inference is CPU-intensive; 4 cores handles concurrent requests
-      memory: "24Gi"     # heap(8g) + JVM overhead + ~8Gi for ML model weights
+      cpu: "4000m"       # can be reduced; ingest pipelines are lighter without ML inference
+      memory: "24Gi"     # can be reduced to ~16Gi (heap*2) now that ML model weights are not loaded
     limits:
       cpu: "8000m"
       memory: "24Gi"
