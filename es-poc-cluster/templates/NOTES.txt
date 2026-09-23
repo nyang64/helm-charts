@@ -360,10 +360,76 @@ STEP {{ $step }} -- Smoke test
 
 {{ else -}}
 {{- $step = add $step 1 }}
-STEP {{ $step }} -- Cluster is ready (ingest.mlEnabled=false -- no ML model configured)
----------------------------------------------------------------------------------------
+STEP {{ $step }} -- Cluster is ready (ingest.mlEnabled=false)
+-------------------------------------------------------------
+  Verify nodes:
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     "$ES_URL/_cat/nodes?v"
+
+
+{{- $step = add $step 1 }}
+STEP {{ $step }} -- BYO vector: create a dense_vector index (external embedding service)
+-----------------------------------------------------------------------------------------
+  Use this path when an enterprise embedding service pre-computes vectors and your
+  client sends text + vector together. ES stores both and handles kNN search.
+  No inference endpoint or ML model needed in this chart -- set ingest.mlEnabled=false.
+
+  1. Create an index with dense_vector mapping:
+     Adjust dims to match your embedding model output (e.g. 384, 768, 1024).
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
+    -X PUT "$ES_URL/knowledge-base" \
+    -H "Content-Type: application/json" -d '
+    {
+      "mappings": {
+        "properties": {
+          "text":       { "type": "text" },
+          "vector":     { "type": "dense_vector", "dims": 768,
+                          "index": true, "similarity": "cosine" },
+          "source_url": { "type": "keyword" },
+          "created_at": { "type": "date" }
+        }
+      }
+    }'
+
+  2. Index a document (client supplies the pre-computed vector):
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
+    -X POST "$ES_URL/knowledge-base/_doc" \
+    -H "Content-Type: application/json" -d '
+    {
+      "text":       "Elasticsearch stores and searches pre-computed vectors.",
+      "vector":     [0.12, -0.34, 0.56],
+      "source_url": "https://example.com/doc1",
+      "created_at": "{{ now | date "2006-01-02" }}"
+    }'
+
+  3. kNN search (client pre-computes the query vector via the same embedding service):
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
+    -X POST "$ES_URL/knowledge-base/_search?pretty" \
+    -H "Content-Type: application/json" -d '
+    {
+      "knn": {
+        "field":        "vector",
+        "query_vector": [0.11, -0.33, 0.55],
+        "k":            10,
+        "num_candidates": 100
+      },
+      "_source": ["text", "source_url"]
+    }'
+
+  4. Hybrid search -- combine kNN with a keyword BM25 filter:
+  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
+    -X POST "$ES_URL/knowledge-base/_search?pretty" \
+    -H "Content-Type: application/json" -d '
+    {
+      "knn": {
+        "field":        "vector",
+        "query_vector": [0.11, -0.33, 0.55],
+        "k":            10,
+        "num_candidates": 100,
+        "filter": { "term": { "source_url": "https://example.com/doc1" } }
+      },
+      "query": { "match": { "text": "vector search" } }
+    }'
 
 {{ end -}}
 ================================================================
