@@ -125,8 +125,10 @@ Generate comma-separated list of master pod names for cluster.initial_master_nod
 
 {{/*
 S3 keystore init container.
-Loads access_key and secret_key from a K8s secret into the ES keystore on every pod start.
-Credentials are never stored in plaintext on disk -- only the keystore (AES-encrypted) is written.
+Loads S3 credentials AND bootstrap.password into the ES keystore on every pod start.
+bootstrap.password must be pre-populated so the ES entrypoint does not attempt to write it
+to the subPath-mounted keystore file at runtime -- that write uses an atomic rename which
+bypasses the bind-mount inode, causing ES to start with a keystore missing the S3 keys.
 Enabled only when snapshot.repository.s3.credentialsSecret is set.
 */}}
 {{- define "es-poc-cluster.keystoreInitContainer" -}}
@@ -148,6 +150,7 @@ Enabled only when snapshot.repository.s3.credentialsSecret is set.
       elasticsearch-keystore create
       printf '%s' "${S3_ACCESS_KEY}" | elasticsearch-keystore add --stdin s3.client.default.access_key
       printf '%s' "${S3_SECRET_KEY}" | elasticsearch-keystore add --stdin s3.client.default.secret_key
+      printf '%s' "${ELASTIC_PASSWORD}" | elasticsearch-keystore add --stdin bootstrap.password
       cp /usr/share/elasticsearch/config/elasticsearch.keystore /keystore-vol/
   env:
     - name: S3_ACCESS_KEY
@@ -160,6 +163,11 @@ Enabled only when snapshot.repository.s3.credentialsSecret is set.
         secretKeyRef:
           name: {{ .Values.snapshot.repository.s3.credentialsSecret }}
           key: secret_key
+    - name: ELASTIC_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: {{ .Values.elasticPassword.existingSecret | default (printf "%s-bootstrap" (include "es-poc-cluster.fullname" .)) }}
+          key: ELASTIC_PASSWORD
   volumeMounts:
     - name: keystore
       mountPath: /keystore-vol
@@ -169,13 +177,15 @@ Enabled only when snapshot.repository.s3.credentialsSecret is set.
 {{/*
 Keystore volumeMount for the main ES container.
 Mounts the keystore file written by keystoreInitContainer via a shared emptyDir.
+Not readOnly: the ES entrypoint writes bootstrap.password via atomic rename; that rename
+creates a new inode at the config path, leaving the bind-mount pointing at our pre-built
+inode. The pre-built keystore already contains bootstrap.password so ES starts correctly.
 */}}
 {{- define "es-poc-cluster.keystoreVolumeMount" -}}
 {{- if and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") .Values.snapshot.repository.s3.credentialsSecret -}}
 - name: keystore
   mountPath: /usr/share/elasticsearch/config/elasticsearch.keystore
   subPath: elasticsearch.keystore
-  readOnly: true
 {{- end -}}
 {{- end }}
 

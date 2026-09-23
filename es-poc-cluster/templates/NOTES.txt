@@ -157,7 +157,7 @@ STEP {{ $step }} -- Register snapshot repository and create SLM policy
 
   2. Verify (triggers a write + read test against the bucket):
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    "$ES_URL/_snapshot/{{ .Values.snapshot.repository.name }}/_verify?pretty"
+    -X POST "$ES_URL/_snapshot/{{ .Values.snapshot.repository.name }}/_verify?pretty"
 
   3. Create the SLM policy:
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
@@ -261,7 +261,8 @@ STEP {{ $step }} -- Integrate Kibana
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }} \
     -H "Authorization: Bearer <value-from-step-1>" \
     "$ES_URL/_security/_authenticate?pretty"
-  # Expected: username = "kibana", roles = ["kibana_system"]
+  # Expected: username = "elastic/kibana", roles = [] (service accounts authenticate
+  # via the service-account descriptor, not the kibana_system role)
 {{- end }}
 
 {{ if .Values.ingest.mlEnabled -}}
@@ -383,7 +384,7 @@ STEP {{ $step }} -- BYO vector: create a dense_vector index (external embedding 
       "mappings": {
         "properties": {
           "text":       { "type": "text" },
-          "vector":     { "type": "dense_vector", "dims": 768,
+          "vector":     { "type": "dense_vector", "dims": 3,
                           "index": true, "similarity": "cosine" },
           "source_url": { "type": "keyword" },
           "created_at": { "type": "date" }
@@ -416,7 +417,8 @@ STEP {{ $step }} -- BYO vector: create a dense_vector index (external embedding 
       "_source": ["text", "source_url"]
     }'
 
-  4. Hybrid search -- combine kNN with a keyword BM25 filter:
+  4. Hybrid search -- combine kNN + BM25 restricted to a single source_url.
+     The filter is applied to BOTH branches so only documents from that source appear:
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     -X POST "$ES_URL/knowledge-base/_search?pretty" \
     -H "Content-Type: application/json" -d '
@@ -428,7 +430,12 @@ STEP {{ $step }} -- BYO vector: create a dense_vector index (external embedding 
         "num_candidates": 100,
         "filter": { "term": { "source_url": "https://example.com/doc1" } }
       },
-      "query": { "match": { "text": "vector search" } }
+      "query": {
+        "bool": {
+          "must":   { "match": { "text": "vector search" } },
+          "filter": { "term": { "source_url": "https://example.com/doc1" } }
+        }
+      }
     }'
 
 {{ end -}}

@@ -323,6 +323,8 @@ ml:
   # insecure: skip TLS certificate verification when connecting to ES.
   # Set true when using self-signed certs (the default cert-manager setup in this chart).
   insecure: true
-  # eland does not publish patch-level images; tag tracks ES major.minor only.
-  elandImage: "docker.elastic.co/eland/eland:8.19.0"
+  # eland does not publish a tag for every ES minor. Verify available tags at:
+  #   https://www.docker.elastic.co/r/eland/eland
+  # 8.18.2 is the latest published 8.x tag; no 8.19.x image exists.
+  elandImage: "docker.elastic.co/eland/eland:8.18.2"
 

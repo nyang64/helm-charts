@@ -39,8 +39,8 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    {{- if .Values.ingest.mlEnabled }}
-    # model-loader Job fetches model from HuggingFace (or ml.hubUrl)
+    {{- if or .Values.ingest.mlEnabled (and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3")) }}
+    # port 443 egress: ML model fetch (HuggingFace) and/or S3 snapshot endpoint.
     - ports:
         - port: 443
           protocol: TCP
