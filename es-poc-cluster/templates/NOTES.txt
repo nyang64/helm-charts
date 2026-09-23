@@ -125,33 +125,22 @@ STEP {{ $step }} -- Create an application API key
 
 STEP {{ $step }} -- Register snapshot repository and create SLM policy
 ----------------------------------------------------------------------
-  {{- if and (eq .Values.snapshot.repository.type "s3") .Values.snapshot.repository.s3.credentialsSecret }}
+  {{- if .Values.snapshot.repository.s3.credentialsSecret }}
   S3 credentials are loaded into the ES keystore automatically by the keystore-init
   container on every pod start (from secret {{ .Values.snapshot.repository.s3.credentialsSecret }}).
   S3 client settings (endpoint, path_style_access, protocol) are already in
   elasticsearch.yml -- no manual keystore provisioning needed.
-  {{- else if and (eq .Values.snapshot.repository.type "s3") .Values.snapshot.repository.s3.irsa.roleArn }}
-  IRSA configured -- ES pods assume the IAM role via the projected service account
-  token. No static credentials or keystore provisioning needed.
   {{- end }}
 
-  1. Register the {{ .Values.snapshot.repository.type | upper }} repository (run once after cluster is healthy):
+  1. Register the S3 repository (run once after cluster is healthy):
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     -X PUT "$ES_URL/_snapshot/{{ .Values.snapshot.repository.name }}" \
     -H "Content-Type: application/json" -d '
     {
-      "type": "{{ .Values.snapshot.repository.type }}",
+      "type": "s3",
       "settings": {
-        {{- if eq .Values.snapshot.repository.type "s3" }}
         "bucket": "{{ .Values.snapshot.repository.s3.bucket }}",
         "base_path": "{{ .Values.snapshot.repository.s3.basePath }}"
-        {{- else if eq .Values.snapshot.repository.type "gcs" }}
-        "bucket": "{{ .Values.snapshot.repository.gcs.bucket }}",
-        "base_path": "{{ .Values.snapshot.repository.gcs.basePath }}"
-        {{- else if eq .Values.snapshot.repository.type "azure" }}
-        "container": "{{ .Values.snapshot.repository.azure.container }}",
-        "base_path": "{{ .Values.snapshot.repository.azure.basePath }}"
-        {{- end }}
       }
     }'
 

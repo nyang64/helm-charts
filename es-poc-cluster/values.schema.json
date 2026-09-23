@@ -101,12 +101,6 @@
       "description": "Extra elasticsearch.yml key-value pairs merged after generated config",
       "additionalProperties": true
     },
-    "kibana": {
-      "type": "object",
-      "properties": {
-        "namespace": { "type": "string" }
-      }
-    },
     "snapshot": {
       "type": "object",
       "properties": {
@@ -115,36 +109,17 @@
           "type": "object",
           "properties": {
             "name": { "type": "string", "minLength": 1 },
-            "type": { "type": "string", "enum": ["s3", "gcs", "azure"] },
+            "type": { "type": "string", "enum": ["s3"] },
             "s3": {
               "type": "object",
               "properties": {
                 "bucket": { "type": "string" },
                 "basePath": { "type": "string" },
-                "endpoint": { "type": "string", "description": "On-prem S3 host (no protocol prefix)" },
+                "endpoint": { "type": "string", "description": "On-prem S3 host (no protocol prefix), e.g. netapp-hpos.your-corp.internal" },
+                "region": { "type": "string" },
                 "pathStyleAccess": { "type": "boolean" },
                 "protocol": { "type": "string", "enum": ["https", "http"] },
-                "credentialsSecret": { "type": "string" },
-                "irsa": {
-                  "type": "object",
-                  "properties": {
-                    "roleArn": { "type": "string" }
-                  }
-                }
-              }
-            },
-            "gcs": {
-              "type": "object",
-              "properties": {
-                "bucket": { "type": "string" },
-                "basePath": { "type": "string" }
-              }
-            },
-            "azure": {
-              "type": "object",
-              "properties": {
-                "container": { "type": "string" },
-                "basePath": { "type": "string" }
+                "credentialsSecret": { "type": "string" }
               }
             }
           }

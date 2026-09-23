@@ -187,8 +187,8 @@ esConfig: {}
 # Snapshot repository and Snapshot Lifecycle Management (SLM).
 # Snapshots protect against logical corruption, accidental deletes, and full
 # cluster loss -- scenarios where replicas offer no protection. The repository
-# must live outside the cluster (S3, GCS, Azure Blob) so it survives a total
-# cluster failure.
+# must live outside the cluster on on-prem S3 (NetApp HPOS) so it survives a
+# total cluster failure.
 #
 # After deploying with snapshot.enabled=true, follow the NOTES runbook step to
 # register the repository and create the SLM policy via the ES API.
@@ -196,47 +196,28 @@ snapshot:
   enabled: false
   repository:
     name: "backup"          # ES internal name used in _snapshot/<name> API calls
-    type: "s3"              # s3 | gcs | azure
+    type: "s3"
     s3:
       bucket: ""            # S3 bucket name -- must exist before repo registration
       basePath: "elasticsearch"   # key prefix within the bucket
-      # endpoint: S3-compatible host (no protocol prefix) for on-prem backends
-      # (NetApp ONTAP S3, StorageGRID, MinIO, etc.). Leave empty for AWS S3 -- the
-      # SDK resolves the regional endpoint from the bucket automatically.
+      # endpoint: S3-compatible host (no protocol prefix) for on-prem S3
+      # (NetApp HPOS, StorageGRID, MinIO, etc.).
       # Example: "netapp-hpos.your-corp.internal"
       endpoint: ""
       # region: required in ES 8.19+ -- AWS SDK v2 no longer infers region from the endpoint.
-      # For on-prem S3 (NetApp HPOS, MinIO), use any placeholder (e.g. "us-east-1" or "default").
-      # For AWS S3, use the actual bucket region.
+      # For on-prem S3 (NetApp HPOS), use any placeholder (e.g. "us-east-1" or "default").
       region: "us-east-1"
-      pathStyleAccess: true     # true for on-prem S3; false for AWS virtual-hosted style
+      pathStyleAccess: true     # true for on-prem S3 path-style addressing
       protocol: "https"
-      # credentialsSecret: K8s secret holding S3 access credentials for on-prem S3.
-      # Mutually exclusive with irsa.roleArn. Secret must have keys: access_key, secret_key.
+      # credentialsSecret: K8s secret with on-prem S3 access credentials.
+      # Secret must have keys: access_key, secret_key.
       # Create with:
       #   kubectl create secret generic es-snapshot-s3-creds \
       #     --from-literal=access_key=<key> \
       #     --from-literal=secret_key=<secret> -n <namespace>
-      # The chart provisions a keystore-init container that loads these into the ES keystore
-      # on every pod start -- credentials are never stored in plaintext on disk.
+      # The chart loads these into the ES keystore via keystore-init on every
+      # pod start -- credentials are never stored in plaintext on disk.
       credentialsSecret: ""
-      # irsa.roleArn: AWS EKS only. ES pods assume this IAM role via IRSA without any static
-      # credentials. Mutually exclusive with credentialsSecret.
-      # Requires serviceAccount.automountServiceAccountToken: true.
-      # Required IAM actions: s3:GetObject, s3:PutObject, s3:DeleteObject, s3:ListBucket,
-      # s3:GetBucketLocation, s3:ListBucketMultipartUploads, s3:ListMultipartUploadParts,
-      # s3:AbortMultipartUpload
-      irsa:
-        roleArn: ""         # e.g. "arn:aws:iam::123456789012:role/es-snapshot-role"
-    gcs:
-      bucket: ""            # GCS bucket name
-      basePath: "elasticsearch"
-      # Use GKE Workload Identity -- annotate the ServiceAccount externally.
-      # No credentials in this chart; GCS plugin reads the metadata server.
-    azure:
-      container: ""         # Azure Blob container name
-      basePath: "elasticsearch"
-      # Use AKS Managed Identity -- no credentials in this chart.
   slm:
     schedule: "0 30 1 * * ?"   # ES cron (UTC) -- default: daily at 01:30
     retention:
