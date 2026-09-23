@@ -1,0 +1,17 @@
+{{- if .Values.kibana.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-kibana
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    role: kibana
+spec:
+  selector:
+    {{- include "es-poc-cluster.selectorLabels" . | nindent 4 }}
+    role: kibana
+  ports:
+    - name: http
+      port: 5601
+      targetPort: 5601
+{{- end }}

@@ -227,6 +227,35 @@
       "properties": {
         "create": { "type": "boolean" }
       }
+    },
+    "kibana": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 1 },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "serviceAccountToken": {
+          "type": "object",
+          "properties": {
+            "existingSecret": { "type": "string" }
+          }
+        },
+        "antiAffinity": { "type": "string", "enum": ["required", "preferred", "disabled"] },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "requests": { "type": "object" },
+            "limits": { "type": "object" }
+          }
+        }
+      }
     }
   }
 }

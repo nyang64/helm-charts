@@ -1,0 +1,42 @@
+{{- if and .Values.kibana.enabled .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-kibana
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    role: kibana
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+      role: kibana
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Port 5601 open to all -- browser access and kubelet health probes.
+    - ports:
+        - port: 5601
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Kibana → ES HTTP port. Reaches ingest pods via the -ingest ClusterIP service.
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "es-poc-cluster.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: 9200
+    {{- if .Values.istio.enabled }}
+    # Istiod control-plane -- Envoy sidecar bootstrap.
+    - ports:
+        - port: 15012
+          protocol: TCP
+        - port: 15010
+          protocol: TCP
+    {{- end }}
+{{- end }}

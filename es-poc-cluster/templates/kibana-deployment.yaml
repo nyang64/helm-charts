@@ -1,0 +1,109 @@
+{{- if .Values.kibana.enabled }}
+{{- $kibanaTag := .Values.kibana.image.tag | default .Values.image.tag }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-kibana
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    role: kibana
+spec:
+  replicas: {{ .Values.kibana.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+      role: kibana
+  template:
+    metadata:
+      labels:
+        {{- include "es-poc-cluster.selectorLabels" . | nindent 8 }}
+        role: kibana
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/kibana-configmap.yaml") . | sha256sum }}
+        {{- if .Values.istio.enabled }}
+        sidecar.istio.io/inject: "true"
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      {{- include "es-poc-cluster.antiAffinity" (list . "kibana" .Values.kibana.antiAffinity) | nindent 6 }}
+      containers:
+        - name: kibana
+          image: "{{ .Values.kibana.image.repository }}:{{ $kibanaTag }}"
+          imagePullPolicy: {{ .Values.kibana.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 5601
+          env:
+            # ES connection -- resolved at runtime so no ConfigMap update is needed on cluster rename.
+            - name: ELASTICSEARCH_HOSTS
+              value: "{{ include "es-poc-cluster.httpScheme" . }}://{{ include "es-poc-cluster.fullname" . }}-ingest.{{ .Release.Namespace }}.svc:9200"
+            - name: ELASTICSEARCH_SERVICEACCOUNTTOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kibana.serviceAccountToken.existingSecret }}
+                  key: token
+          resources:
+            {{- toYaml .Values.kibana.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            # Kibana can take 2-3 min on first start: waits for ES to be ready,
+            # then migrates saved objects. Allow up to 5 min before liveness takes over.
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: kibana-config
+              mountPath: /usr/share/kibana/config/kibana.yml
+              subPath: kibana.yml
+              readOnly: true
+            {{- if and .Values.tls.enabled (not .Values.istio.enabled) }}
+            # CA cert so Kibana can verify the ES HTTPS endpoint.
+            - name: tls-certs
+              mountPath: /usr/share/kibana/config/certs
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: kibana-config
+          configMap:
+            name: {{ include "es-poc-cluster.fullname" . }}-kibana-config
+        {{- if and .Values.tls.enabled (not .Values.istio.enabled) }}
+        - name: tls-certs
+          secret:
+            secretName: {{ include "es-poc-cluster.tlsSecretName" . }}
+        {{- end }}
+{{- end }}

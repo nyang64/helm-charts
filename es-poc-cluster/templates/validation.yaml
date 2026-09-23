@@ -66,6 +66,12 @@ not at Elasticsearch startup time inside the cluster.
 {{- end }}
 {{- end }}
 
+{{- if .Values.kibana.enabled }}
+{{- if not .Values.kibana.serviceAccountToken.existingSecret }}
+{{- fail "Invalid configuration: kibana.enabled=true requires kibana.serviceAccountToken.existingSecret. Create a K8s Secret with key 'token' containing the ES service account token before installing." }}
+{{- end }}
+{{- end }}
+
 {{/* Lookup-based prereq checks -- these run against a real cluster during helm install/upgrade.
      During 'helm template' (no cluster access), lookup returns {} and checks are skipped. */}}
 {{- $clusterReachable := lookup "v1" "Namespace" "" .Release.Namespace }}
@@ -76,6 +82,14 @@ not at Elasticsearch startup time inside the cluster.
     {{- fail (printf "Pre-install check: Secret '%s' not found in namespace '%s'. Create it before installing (key: ELASTIC_PASSWORD)." .Values.elasticPassword.existingSecret .Release.Namespace) }}
     {{- else if not (hasKey $s.data "ELASTIC_PASSWORD") }}
     {{- fail (printf "Pre-install check: Secret '%s' exists but is missing required key 'ELASTIC_PASSWORD'." .Values.elasticPassword.existingSecret) }}
+    {{- end }}
+  {{- end }}
+  {{- if .Values.kibana.enabled }}
+    {{- $ks := lookup "v1" "Secret" .Release.Namespace .Values.kibana.serviceAccountToken.existingSecret }}
+    {{- if not (hasKey $ks "metadata") }}
+    {{- fail (printf "Pre-install check: Kibana token Secret '%s' not found in namespace '%s'. Create it before enabling Kibana (key: token)." .Values.kibana.serviceAccountToken.existingSecret .Release.Namespace) }}
+    {{- else if not (hasKey $ks.data "token") }}
+    {{- fail (printf "Pre-install check: Kibana token Secret '%s' exists but is missing required key 'token'." .Values.kibana.serviceAccountToken.existingSecret) }}
     {{- end }}
   {{- end }}
   {{- if .Values.tls.enabled }}

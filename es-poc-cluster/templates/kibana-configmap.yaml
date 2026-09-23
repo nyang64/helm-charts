@@ -1,0 +1,21 @@
+{{- if .Values.kibana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-kibana-config
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    role: kibana
+data:
+  kibana.yml: |
+    server.name: kibana
+    server.host: "0.0.0.0"
+    server.port: 5601
+    {{- if and .Values.tls.enabled (not .Values.istio.enabled) }}
+    # Kibana → ES: HTTPS with cert-manager CA. ES hosts and token come from env vars.
+    elasticsearch.ssl.certificateAuthorities: ["/usr/share/kibana/config/certs/ca.crt"]
+    elasticsearch.ssl.verificationMode: certificate
+    {{- end }}
+    telemetry.optIn: false
+    telemetry.enabled: false
+{{- end }}

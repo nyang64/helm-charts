@@ -244,14 +244,36 @@ snapshot:
       minCount: 5           # always keep at least this many regardless of expiry
       maxCount: 50          # never keep more than this many
 
-# Kibana integration.
-# Set namespace to the K8s namespace where Kibana is deployed.
-# When set, the NOTES runbook includes a step for creating the ES service account token
-# and wiring it into the elastic/kibana Helm chart.
-# When istio.enabled=true, also add this namespace to istio.allowedNamespaces so the
-# Istio AuthorizationPolicy permits Kibana pods to reach ES on port 9200.
+# Kibana -- deployed in the same namespace as ES and fully managed by this chart.
+# Before enabling, ES must be healthy and the service account token must be created
+# (see NOTES runbook). The token secret must exist in the namespace before helm install/upgrade.
+#
+# Quick start (after ES is healthy):
+#   curl -sf -k -u "elastic:<password>" https://localhost:9200/_security/service/elastic/kibana/credential/token/kibana-1
+#   kubectl create secret generic kibana-es-token --from-literal=token="<value>" -n <namespace>
+#   helm upgrade <release> . -f environments/<env>.yaml --set kibana.enabled=true \
+#     --set kibana.serviceAccountToken.existingSecret=kibana-es-token
 kibana:
-  namespace: ""   # e.g. "kibana" or "elastic"
+  enabled: false
+  replicas: 1
+  image:
+    repository: docker.elastic.co/kibana/kibana
+    # tag: defaults to .Values.image.tag when empty -- Kibana must match ES major.minor.
+    # docker.elastic.co/kibana/kibana tags track ES versions exactly.
+    tag: ""
+    pullPolicy: IfNotPresent
+  serviceAccountToken:
+    # existingSecret: K8s Secret in the release namespace with key: token.
+    # Required when kibana.enabled=true. Create before running helm install/upgrade.
+    existingSecret: ""
+  antiAffinity: "preferred"
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
 
 probes:
   startup:
