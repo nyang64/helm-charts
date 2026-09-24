@@ -215,20 +215,23 @@ Set `kibana.enabled: false` (the default) — this chart renders no Kibana resou
 The ingest Service is ClusterIP by default, reachable only inside the ES cluster.
 Choose one exposure method:
 
-**Option 1: Istio Gateway (non-Istio ES cluster, `istio.enabled=false`)**
+**Option 1: Istio Gateway with PASSTHROUGH (non-Istio ES cluster, `istio.enabled=false`)**
 
-When ES uses TLS at the application layer (`tls.enabled=true`, `istio.enabled=false`),
-use a SIMPLE TLS-terminating Gateway. The Gateway presents the ES certificate to
-external clients; Kibana connects to ES over HTTPS.
+When ES serves HTTPS directly (`tls.enabled=true`, `istio.enabled=false`), use
+`mode: PASSTHROUGH` so the TLS stream is forwarded end-to-end to ES. The ES pod
+terminates TLS itself; Kibana verifies the ES certificate using the CA from Step B-2.
 
-> **Do NOT use `mode: PASSTHROUGH` when `istio.enabled=true`.**
-> In Istio mode this chart serves ES over plaintext HTTP (Envoy handles mTLS
-> inside the mesh). PASSTHROUGH preserves the application-level TLS stream and
-> delivers it to the plaintext HTTP listener — the connection is rejected.
+> **Do NOT use PASSTHROUGH when `istio.enabled=true`.**  
+> In Istio mode this chart serves ES over plaintext HTTP (Envoy handles mTLS).
+> PASSTHROUGH delivers the raw TLS stream to a plaintext HTTP listener — rejected.  
 > For Istio-mode ES, use Option 2 (LoadBalancer) instead.
+>
+> **Do NOT use SIMPLE when `istio.enabled=false` and `tls.enabled=true`.**  
+> SIMPLE terminates TLS at the gateway and forwards plaintext, but ES expects HTTPS.
+> That is also a protocol mismatch.
 
 ```yaml
-# es-gateway.yaml (apply in the ES cluster, requires istio.enabled=false + tls.enabled=true)
+# es-gateway.yaml (apply in the ES cluster; requires istio.enabled=false + tls.enabled=true)
 apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
@@ -243,8 +246,7 @@ spec:
         name: https-es
         protocol: HTTPS
       tls:
-        mode: SIMPLE
-        credentialName: <tls.secretName>   # same cert the chart issued for ES
+        mode: PASSTHROUGH   # end-to-end TLS; ES pod terminates it
       hosts:
         - es.<your-domain>
 ---
@@ -258,8 +260,12 @@ spec:
     - es.<your-domain>
   gateways:
     - es-gateway
-  http:
-    - route:
+  tls:
+    - match:
+        - port: 9200
+          sniHosts:
+            - es.<your-domain>
+      route:
         - destination:
             host: <release>-ingest.<es-namespace>.svc.cluster.local
             port:

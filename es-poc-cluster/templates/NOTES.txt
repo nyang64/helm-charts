@@ -214,8 +214,11 @@ STEP {{ $step }} -- Enable Kibana
   kubectl create secret generic {{ .Values.kibana.serviceAccountToken.existingSecret }} \
     --from-literal=token="<new-value>" \
     --dry-run=client -o yaml | kubectl apply -f - -n {{ .Release.Namespace }}
-  # Upgrade to trigger rolling restart (checksum annotation detects the secret change):
-  helm upgrade {{ .Release.Name }} . -f environments/<your-env>.yaml -n {{ .Release.Namespace }}
+  # Upgrade to trigger restart (checksum/token-secret annotation detects the change).
+  # Use --reuse-values to preserve kibana.enabled=true and other runtime settings;
+  # without it, helm upgrade with the env file alone reverts Kibana to disabled if
+  # kibana.enabled is not persisted in the overlay.
+  helm upgrade {{ .Release.Name }} . -f environments/<your-env>.yaml --reuse-values -n {{ .Release.Namespace }}
   # Once Kibana is healthy with the new token, revoke the old one:
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     -X DELETE "$ES_URL/_security/service/elastic/kibana/credential/token/kibana-1?pretty"
