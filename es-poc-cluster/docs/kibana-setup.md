@@ -31,8 +31,12 @@ Applies to both paths:
    ES_NAMESPACE=<es-namespace>
    RELEASE=<release-name>
 
-   # Retrieve the elastic password
-   ELASTIC_PASSWORD=$(kubectl get secret ${RELEASE}-bootstrap \
+   # Retrieve the elastic password.
+   # The secret name is set by elasticPassword.existingSecret in your env overlay
+   # (e.g. "es-sandbox-elastic-secret"). If using the chart default (no existingSecret),
+   # the name is "${RELEASE}-bootstrap".
+   ELASTIC_SECRET=<value-of-elasticPassword.existingSecret-from-your-env-overlay>
+   ELASTIC_PASSWORD=$(kubectl get secret ${ELASTIC_SECRET} \
      -n ${ES_NAMESPACE} -o jsonpath='{.data.ELASTIC_PASSWORD}' | base64 -d)
 
    # ES URL — adjust TLS flag based on your setup
@@ -181,17 +185,20 @@ kubectl create secret generic kibana-es-token \
   --from-literal=token="<new-value>" \
   --dry-run=client -o yaml | kubectl apply -f - -n ${ES_NAMESPACE}
 
-# 3. Upgrade the release — the checksum annotation on the Deployment detects
-#    the secret change and triggers a rolling restart automatically
-helm upgrade ${RELEASE} . -f environments/<your-env>.yaml -n ${ES_NAMESPACE}
+# 3. Upgrade to trigger a restart — the checksum/token-secret annotation detects
+#    the secret change. Use --reuse-values to preserve kibana.enabled=true and all
+#    other runtime settings; or ensure your env overlay already has kibana.enabled=true
+#    (running helm upgrade with the env file alone will revert Kibana to disabled
+#    if kibana.enabled is not persisted there).
+helm upgrade ${RELEASE} . -f environments/<your-env>.yaml --reuse-values -n ${ES_NAMESPACE}
 
-# 4. Wait for rollout, then revoke the old token
+# 4. Wait for the new pod to be Ready, then revoke the old token.
+#    Both tokens are valid simultaneously during the restart (Recreate strategy
+#    has a brief gap; use RollingUpdate if zero downtime is required).
 kubectl rollout status deployment/${RELEASE}-kibana -n ${ES_NAMESPACE}
 curl -sf ${CURL_TLS} -u "elastic:${ELASTIC_PASSWORD}" \
   -X DELETE "${ES_URL}/_security/service/elastic/kibana/credential/token/kibana-1?pretty"
 ```
-
-Both tokens are valid simultaneously during the rollout — zero sessions are dropped.
 
 ---
 
@@ -208,13 +215,20 @@ Set `kibana.enabled: false` (the default) — this chart renders no Kibana resou
 The ingest Service is ClusterIP by default, reachable only inside the ES cluster.
 Choose one exposure method:
 
-**Option 1: Istio Gateway + VirtualService** (recommended for OpenShift with Istio)
+**Option 1: Istio Gateway (non-Istio ES cluster, `istio.enabled=false`)**
 
-Create a Gateway and VirtualService in the ES cluster that routes external HTTPS
-traffic to the ingest service. Example:
+When ES uses TLS at the application layer (`tls.enabled=true`, `istio.enabled=false`),
+use a SIMPLE TLS-terminating Gateway. The Gateway presents the ES certificate to
+external clients; Kibana connects to ES over HTTPS.
+
+> **Do NOT use `mode: PASSTHROUGH` when `istio.enabled=true`.**
+> In Istio mode this chart serves ES over plaintext HTTP (Envoy handles mTLS
+> inside the mesh). PASSTHROUGH preserves the application-level TLS stream and
+> delivers it to the plaintext HTTP listener — the connection is rejected.
+> For Istio-mode ES, use Option 2 (LoadBalancer) instead.
 
 ```yaml
-# es-gateway.yaml (apply in the ES cluster)
+# es-gateway.yaml (apply in the ES cluster, requires istio.enabled=false + tls.enabled=true)
 apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
@@ -229,7 +243,8 @@ spec:
         name: https-es
         protocol: HTTPS
       tls:
-        mode: PASSTHROUGH   # let Kibana verify the ES cert end-to-end
+        mode: SIMPLE
+        credentialName: <tls.secretName>   # same cert the chart issued for ES
       hosts:
         - es.<your-domain>
 ---
@@ -243,19 +258,18 @@ spec:
     - es.<your-domain>
   gateways:
     - es-gateway
-  tls:
-    - match:
-        - port: 9200
-          sniHosts:
-            - es.<your-domain>
-      route:
+  http:
+    - route:
         - destination:
             host: <release>-ingest.<es-namespace>.svc.cluster.local
             port:
               number: 9200
 ```
 
-**Option 2: LoadBalancer service** (cloud or on-prem with MetalLB)
+Also set `istio.gateway.hostname: es.<your-domain>` in your values so the chart's
+Istio AuthorizationPolicy Rule 4 allows the ingress gateway to reach ES port 9200.
+
+**Option 2: LoadBalancer service** (Istio or non-Istio; on-prem with MetalLB)
 
 ```bash
 # Patch the ingest service to type LoadBalancer (apply in the ES cluster)
@@ -270,9 +284,10 @@ kubectl get svc ${RELEASE}-ingest -n ${ES_NAMESPACE} \
 After either option, record the ES endpoint that Kibana will use:
 
 ```bash
-ES_EXTERNAL_URL="https://es.<your-domain>:9200"   # Istio Gateway
-# or
-ES_EXTERNAL_URL="https://<loadbalancer-ip>:9200"  # LoadBalancer
+# Istio Gateway (non-Istio ES, TLS terminated at gateway):
+ES_EXTERNAL_URL="https://es.<your-domain>:9200"
+# LoadBalancer (non-Istio ES, TLS at app layer; or Istio ES with LB):
+ES_EXTERNAL_URL="https://<loadbalancer-ip>:9200"
 ```
 
 ### Step B-2 — Distribute the ES CA certificate to the Kibana cluster
@@ -281,8 +296,12 @@ Kibana must trust the ES TLS certificate. Extract the CA from the ES cluster and
 create it in the Kibana cluster:
 
 ```bash
-# Run against the ES cluster
-kubectl get secret ${RELEASE}-es-tls -n ${ES_NAMESPACE} \
+# Run against the ES cluster.
+# The TLS secret name is set by tls.secretName in your env overlay
+# (e.g. "es-sandbox-tls"). If using the chart default (no tls.secretName),
+# the name is "${RELEASE}-tls".
+TLS_SECRET=<value-of-tls.secretName-from-your-env-overlay>
+kubectl get secret ${TLS_SECRET} -n ${ES_NAMESPACE} \
   -o jsonpath='{.data.ca\.crt}' | base64 -d > es-ca.crt
 
 # Run against the Kibana cluster (switch kubeconfig context first if needed)
@@ -364,7 +383,11 @@ helm upgrade --install kibana elastic/kibana \
   -n <kibana-namespace>
 ```
 
-**Using a standalone `kibana.yml`** (non-Helm deployment):
+**Using a standalone `kibana.yml`** (native tar/RPM deployment):
+
+The uppercase env-var translation (`ELASTICSEARCH_SERVICEACCOUNTTOKEN` →
+`elasticsearch.serviceAccountToken`) is performed by the official Docker entrypoint
+helper. Native installations have no such helper — use explicit YAML keys:
 
 ```yaml
 server.host: "0.0.0.0"
@@ -374,24 +397,29 @@ elasticsearch.hosts: ["<ES_EXTERNAL_URL>"]
 elasticsearch.ssl.certificateAuthorities: ["/path/to/ca.crt"]
 elasticsearch.ssl.verificationMode: certificate
 
-# Inject these as environment variables rather than hardcoding in the file:
-# ELASTICSEARCH_SERVICEACCOUNTTOKEN=<token-value>
-# XPACK_SECURITY_ENCRYPTIONKEY=<32-char-key>
-# XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=<32-char-key>
-# XPACK_REPORTING_ENCRYPTIONKEY=<32-char-key>
+# Set the token and encryption keys directly (use secrets management to inject):
+elasticsearch.serviceAccountToken: "<token-value>"
+xpack.security.encryptionKey: "<32-char-key>"
+xpack.encryptedSavedObjects.encryptionKey: "<32-char-key>"
+xpack.reporting.encryptionKey: "<32-char-key>"
 
 telemetry.optIn: false
 telemetry.enabled: false
 ```
 
+> For Docker-based deployments: set the XPACK_* and ELASTICSEARCH_SERVICEACCOUNTTOKEN
+> environment variables instead — the Docker entrypoint translates them to the
+> YAML keys automatically.
+
 ### Step B-6 — Verify
 
 ```bash
-# From the Kibana cluster, check Kibana status
-kubectl rollout status deployment/kibana -n <kibana-namespace>
+# elastic/kibana chart renders the deployment as "kibana-kibana" (release + chart name)
+# Standalone / custom deployments use whatever name you gave the Deployment.
+kubectl rollout status deployment/kibana-kibana -n <kibana-namespace>
 
-# Access Kibana
-kubectl port-forward svc/kibana 5601:5601 -n <kibana-namespace>
+# Access Kibana (Service is also "kibana-kibana" in the elastic/kibana chart)
+kubectl port-forward svc/kibana-kibana 5601:5601 -n <kibana-namespace>
 # Open: http://localhost:5601
 # Log in as: elastic / <ELASTIC_PASSWORD>
 

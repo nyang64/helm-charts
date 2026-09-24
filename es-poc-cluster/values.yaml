@@ -230,7 +230,7 @@ snapshot:
 # (see NOTES runbook). The token secret must exist in the namespace before helm install/upgrade.
 #
 # Quick start (after ES is healthy):
-#   curl -sf -k -u "elastic:<password>" https://localhost:9200/_security/service/elastic/kibana/credential/token/kibana-1
+#   curl -sf -k -u "elastic:<password>" -X POST https://localhost:9200/_security/service/elastic/kibana/credential/token/kibana-1
 #   kubectl create secret generic kibana-es-token --from-literal=token="<value>" -n <namespace>
 #   helm upgrade <release> . -f environments/<env>.yaml --set kibana.enabled=true \
 #     --set kibana.serviceAccountToken.existingSecret=kibana-es-token
@@ -261,6 +261,11 @@ kibana:
     #     --from-literal=reporting="$(openssl rand -hex 32)" \
     #     -n <namespace>
     existingSecret: ""
+  # updateStrategy: Recreate (default) terminates the old pod before starting the new one.
+  # Required for version upgrades -- Kibana 8.x does not support two versions running
+  # simultaneously. Use RollingUpdate only for same-version config-only rollouts where
+  # brief pod overlap is safe (typically multi-replica deployments).
+  updateStrategy: "Recreate"
   antiAffinity: "preferred"
   resources:
     requests:

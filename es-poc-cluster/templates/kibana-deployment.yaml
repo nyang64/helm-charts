@@ -10,10 +10,17 @@ metadata:
 spec:
   replicas: {{ .Values.kibana.replicas }}
   strategy:
-    type: RollingUpdate
+    # Recreate (default): terminates the old pod before starting the new one.
+    # Required for version upgrades -- Kibana 8.x does not support running two
+    # versions simultaneously (migration failures / data loss risk).
+    # Use RollingUpdate only for same-version config rollouts where brief overlap
+    # is safe and zero-downtime is required (multi-replica deployments).
+    type: {{ .Values.kibana.updateStrategy | default "Recreate" }}
+    {{- if eq (.Values.kibana.updateStrategy | default "Recreate") "RollingUpdate" }}
     rollingUpdate:
       maxSurge: 1
       maxUnavailable: 0
+    {{- end }}
   selector:
     matchLabels:
       {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
@@ -25,6 +32,8 @@ spec:
         role: kibana
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/kibana-configmap.yaml") . | sha256sum }}
+        {{- $tokenSecret := lookup "v1" "Secret" .Release.Namespace .Values.kibana.serviceAccountToken.existingSecret }}
+        checksum/token-secret: {{ $tokenSecret | toJson | sha256sum }}
         {{- if .Values.istio.enabled }}
         sidecar.istio.io/inject: "true"
         {{- end }}
@@ -88,8 +97,11 @@ spec:
             failureThreshold: 30
             timeoutSeconds: 10
           livenessProbe:
+            # /api/status returns 503 when ES is down, which would kill a healthy
+            # Kibana process during ES outages. Use the root path which returns 302
+            # (redirect to login) regardless of ES availability -- process-local check.
             httpGet:
-              path: /api/status
+              path: /
               port: 5601
             initialDelaySeconds: 10
             periodSeconds: 30
@@ -122,5 +134,8 @@ spec:
         - name: tls-certs
           secret:
             secretName: {{ include "es-poc-cluster.tlsSecretName" . }}
+            items:
+              - key: ca.crt
+                path: ca.crt
         {{- end }}
 {{- end }}

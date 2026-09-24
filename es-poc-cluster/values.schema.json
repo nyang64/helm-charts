@@ -228,6 +228,7 @@
             "existingSecret": { "type": "string" }
           }
         },
+        "updateStrategy": { "type": "string", "enum": ["Recreate", "RollingUpdate"] },
         "antiAffinity": { "type": "string", "enum": ["required", "preferred", "disabled"] },
         "resources": {
           "type": "object",

@@ -47,6 +47,11 @@ metadata:
   name: {{ include "es-poc-cluster.fullname" . }}
   labels:
     {{- include "es-poc-cluster.labels" . | nindent 4 }}
+# Policy 1: Elasticsearch pods (master, data, ingest) -- ports 9200 and 9300 only.
+# Kibana pods also match this selector (shared chart labels), but Istio ALLOW
+# policies use union semantics: a request is allowed if ANY matching ALLOW policy
+# allows it. Policy 2 below explicitly allows port 5601 on Kibana pods, so the
+# absence of a 5601 rule here does not deny Kibana traffic.
 spec:
   selector:
     matchLabels:
@@ -87,4 +92,47 @@ spec:
         - operation:
             ports: ["9200"]
     {{- end }}
+{{- if .Values.kibana.enabled }}
+---
+# Policy 2: Kibana pods -- port 5601 (browser + kubelet probes).
+# Separate policy so ES rules do not need to enumerate 5601 and Kibana rules
+# do not need to enumerate 9200/9300.
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-kibana
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+      role: kibana
+  action: ALLOW
+  rules:
+    # Browser and port-forward access -- open to the namespace (and gateway below)
+    - from:
+        - source:
+            namespaces: ["{{ .Release.Namespace }}"]
+      to:
+        - operation:
+            ports: ["5601"]
+    {{- if .Values.istio.allowedNamespaces }}
+    - from:
+        - source:
+            namespaces: {{ .Values.istio.allowedNamespaces | toJson }}
+      to:
+        - operation:
+            ports: ["5601"]
+    {{- end }}
+    {{- if .Values.istio.gateway.hostname }}
+    # Istio ingress gateway -- external browser traffic
+    - from:
+        - source:
+            namespaces: ["istio-system"]
+      to:
+        - operation:
+            ports: ["5601"]
+    {{- end }}
+{{- end }}
 {{- end }}

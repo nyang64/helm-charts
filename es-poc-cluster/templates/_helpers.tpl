@@ -150,7 +150,9 @@ Enabled only when snapshot.repository.s3.credentialsSecret is set.
       elasticsearch-keystore create
       printf '%s' "${S3_ACCESS_KEY}" | elasticsearch-keystore add --stdin s3.client.default.access_key
       printf '%s' "${S3_SECRET_KEY}" | elasticsearch-keystore add --stdin s3.client.default.secret_key
+      {{- if .Values.security.enabled }}
       printf '%s' "${ELASTIC_PASSWORD}" | elasticsearch-keystore add --stdin bootstrap.password
+      {{- end }}
       cp /usr/share/elasticsearch/config/elasticsearch.keystore /keystore-vol/
   env:
     - name: S3_ACCESS_KEY
@@ -163,11 +165,13 @@ Enabled only when snapshot.repository.s3.credentialsSecret is set.
         secretKeyRef:
           name: {{ .Values.snapshot.repository.s3.credentialsSecret }}
           key: secret_key
+    {{- if .Values.security.enabled }}
     - name: ELASTIC_PASSWORD
       valueFrom:
         secretKeyRef:
           name: {{ .Values.elasticPassword.existingSecret | default (printf "%s-bootstrap" (include "es-poc-cluster.fullname" .)) }}
           key: ELASTIC_PASSWORD
+    {{- end }}
   volumeMounts:
     - name: keystore
       mountPath: /keystore-vol

@@ -40,8 +40,11 @@ not at Elasticsearch startup time inside the cluster.
 {{- if not .Values.snapshot.repository.s3.bucket }}
 {{- fail "Invalid configuration: snapshot.enabled=true requires snapshot.repository.s3.bucket." }}
 {{- end }}
-{{- if and .Values.snapshot.repository.s3.credentialsSecret (not .Values.snapshot.repository.s3.endpoint) }}
-{{- fail "Invalid configuration: snapshot.repository.s3.endpoint is required when credentialsSecret is set (e.g. 'netapp-hpos.your-corp.internal')." }}
+{{- if not .Values.snapshot.repository.s3.credentialsSecret }}
+{{- fail "Invalid configuration: snapshot.enabled=true requires snapshot.repository.s3.credentialsSecret. On-prem S3 (NetApp HPOS) uses static access/secret key credentials stored in a K8s Secret." }}
+{{- end }}
+{{- if not .Values.snapshot.repository.s3.endpoint }}
+{{- fail "Invalid configuration: snapshot.enabled=true requires snapshot.repository.s3.endpoint (e.g. 'netapp-hpos.your-corp.internal'). On-prem S3 does not use AWS endpoint discovery." }}
 {{- end }}
 {{- end }}
 

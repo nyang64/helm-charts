@@ -132,13 +132,14 @@ STEP {{ $step }} -- Register snapshot repository and create SLM policy
   elasticsearch.yml -- no manual keystore provisioning needed.
   {{- end }}
 
-  Snapshot scope (include_global_state: false):
-    INCLUDED: all index data, mappings, settings, aliases, and the .security-*
-              index (users, roles, API keys -- stored as a regular index in ES 8.x).
-    EXCLUDED: ILM policies, index templates, ingest pipelines, component templates,
-              persistent cluster settings. These are managed as IaC/Helm config
-              and are reapplied at deploy time, not recovered from snapshots.
-  For full-cluster DR on a blank cluster see step 5b below.
+  Snapshot scope (include_global_state: false, no explicit feature_states):
+    INCLUDED: all index data, mappings, settings, and aliases.
+    EXCLUDED: .security-* feature state (users, roles, API keys, Kibana service
+              tokens), ILM policies, index templates, ingest pipelines, component
+              templates, and persistent cluster settings.
+  This is a data-only backup. Security state and cluster configuration are NOT
+  recoverable from these snapshots. Recreate them from IaC/secrets manager after
+  restoring to a fresh cluster.
 
   1. Register the S3 repository (run once after cluster is healthy):
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
@@ -182,20 +183,15 @@ STEP {{ $step }} -- Register snapshot repository and create SLM policy
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     "$ES_URL/_snapshot/{{ .Values.snapshot.repository.name }}/_all?pretty"
 
-  5a. Partial restore -- recover indices into a running cluster (most common):
+  5. Restore -- recover indices into the cluster:
   # Close or delete the target indices first if they already exist, then:
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     -X POST "$ES_URL/_snapshot/{{ .Values.snapshot.repository.name }}/<snap-name>/_restore?pretty" \
     -H "Content-Type: application/json" -d '{"include_global_state": false}'
-
-  5b. Full DR restore -- blank cluster, recover everything including ILM policies,
-      index templates, and ingest pipelines (use include_global_state: true ONLY
-      on a fresh cluster with no conflicting state):
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    -X POST "$ES_URL/_snapshot/{{ .Values.snapshot.repository.name }}/<snap-name>/_restore?pretty" \
-    -H "Content-Type: application/json" -d '{"include_global_state": true}'
-  # After restore, re-run helm upgrade to reconcile any IaC-managed config
-  # (ILM policies, ingest pipelines) that diverged from the snapshot version.
+  # NOTE: include_global_state:true cannot be used here -- the snapshot was taken
+  # with include_global_state:false and does not contain global state.
+  # After a full cluster loss, recreate users/roles/API keys from your secrets
+  # manager and reapply IaC config before restoring data.
 {{- end }}
 
 {{- $step = add $step 1 }}
