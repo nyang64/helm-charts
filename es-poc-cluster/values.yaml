@@ -1,5 +1,5 @@
 # Cluster-wide settings
-clusterName: es-poc-cluster
+clusterName: aimlp-search
 
 image:
   repository: docker.elastic.co/elasticsearch/elasticsearch

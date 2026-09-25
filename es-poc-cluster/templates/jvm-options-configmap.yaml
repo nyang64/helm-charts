@@ -14,9 +14,9 @@ Heap rules:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "es-poc-cluster.fullname" . }}-jvm-options
+  name: {{ include "aimlp-search.fullname" . }}-jvm-options
   labels:
-    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    {{- include "aimlp-search.labels" . | nindent 4 }}
 data:
   master-heap.options: |
     -Xms{{ .Values.master.heapSize }}

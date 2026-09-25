@@ -3,9 +3,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ include "es-poc-cluster.fullname" . }}
+  name: {{ include "aimlp-search.fullname" . }}
   labels:
-    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    {{- include "aimlp-search.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["pods", "services", "endpoints"]
@@ -17,15 +17,15 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ include "es-poc-cluster.fullname" . }}
+  name: {{ include "aimlp-search.fullname" . }}
   labels:
-    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    {{- include "aimlp-search.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ include "es-poc-cluster.fullname" . }}
+  name: {{ include "aimlp-search.fullname" . }}
 subjects:
   - kind: ServiceAccount
-    name: {{ include "es-poc-cluster.serviceAccountName" . }}
+    name: {{ include "aimlp-search.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 {{- end }}

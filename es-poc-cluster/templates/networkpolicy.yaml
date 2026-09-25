@@ -2,13 +2,13 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "es-poc-cluster.fullname" . }}
+  name: {{ include "aimlp-search.fullname" . }}
   labels:
-    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    {{- include "aimlp-search.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+      {{- include "aimlp-search.selectorLabels" . | nindent 6 }}
     matchExpressions:
       - key: role
         operator: NotIn
@@ -20,7 +20,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              {{- include "es-poc-cluster.selectorLabels" . | nindent 14 }}
+              {{- include "aimlp-search.selectorLabels" . | nindent 14 }}
       ports:
         - port: 9200
         - port: 9300
@@ -34,7 +34,7 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              {{- include "es-poc-cluster.selectorLabels" . | nindent 14 }}
+              {{- include "aimlp-search.selectorLabels" . | nindent 14 }}
       ports:
         - port: 9200
         - port: 9300

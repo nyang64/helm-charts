@@ -3,9 +3,9 @@
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: {{ include "es-poc-cluster.tlsIssuerName" . }}-bootstrap
+  name: {{ include "aimlp-search.tlsIssuerName" . }}-bootstrap
   labels:
-    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    {{- include "aimlp-search.labels" . | nindent 4 }}
 spec:
   selfSigned: {}
 ---
@@ -13,15 +13,15 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ include "es-poc-cluster.tlsIssuerName" . }}-ca
+  name: {{ include "aimlp-search.tlsIssuerName" . }}-ca
   labels:
-    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    {{- include "aimlp-search.labels" . | nindent 4 }}
 spec:
   isCA: true
-  commonName: {{ include "es-poc-cluster.fullname" . }}-ca
-  secretName: {{ include "es-poc-cluster.tlsIssuerName" . }}-ca
+  commonName: {{ include "aimlp-search.fullname" . }}-ca
+  secretName: {{ include "aimlp-search.tlsIssuerName" . }}-ca
   issuerRef:
-    name: {{ include "es-poc-cluster.tlsIssuerName" . }}-bootstrap
+    name: {{ include "aimlp-search.tlsIssuerName" . }}-bootstrap
     kind: Issuer
   privateKey:
     algorithm: ECDSA
@@ -31,10 +31,10 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: {{ include "es-poc-cluster.tlsIssuerName" . }}
+  name: {{ include "aimlp-search.tlsIssuerName" . }}
   labels:
-    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    {{- include "aimlp-search.labels" . | nindent 4 }}
 spec:
   ca:
-    secretName: {{ include "es-poc-cluster.tlsIssuerName" . }}-ca
+    secretName: {{ include "aimlp-search.tlsIssuerName" . }}-ca
 {{- end }}

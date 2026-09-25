@@ -1,5 +1,5 @@
 apiVersion: v2
-name: es-poc-cluster
+name: aimlp-search
 description: Elasticsearch cluster with master and data nodes (data+ingest roles) -- secured with TLS, xpack.security, and API key authentication
 type: application
 version: 0.8.0

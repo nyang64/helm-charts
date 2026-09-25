@@ -1,7 +1,7 @@
 # Production -- 18-30 TB raw x 3 replicas across 10 data pods (3-5 Ti per pod).
 # Sized for 5 Ti per pod to cover the upper bound with headroom.
 # All secrets must be pre-created externally -- no passwords in this file.
-# Usage: helm template es-poc-cluster . -f environments/prod.yaml -n <namespace>
+# Usage: helm template aimlp-search . -f environments/prod.yaml -n <namespace>
 #   -n is required: without it Helm falls back to the active kubeconfig namespace,
 #   making generated YAML non-reproducible across machines and CI runs.
 #

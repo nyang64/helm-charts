@@ -5,10 +5,10 @@
 apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
-  name: {{ include "es-poc-cluster.fullname" . }}
+  name: {{ include "aimlp-search.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    {{- include "aimlp-search.labels" . | nindent 4 }}
 spec:
   selector:
     {{- toYaml .Values.istio.gateway.selector | nindent 4 }}

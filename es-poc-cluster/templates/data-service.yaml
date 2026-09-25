@@ -1,15 +1,15 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "es-poc-cluster.fullname" . }}-data-headless
+  name: {{ include "aimlp-search.fullname" . }}-data-headless
   labels:
-    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    {{- include "aimlp-search.labels" . | nindent 4 }}
     role: data
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
   selector:
-    {{- include "es-poc-cluster.selectorLabels" . | nindent 4 }}
+    {{- include "aimlp-search.selectorLabels" . | nindent 4 }}
     role: data
   ports:
     - name: transport

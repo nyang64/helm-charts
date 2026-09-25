@@ -58,9 +58,9 @@ STEP 2 -- Connect to the cluster
 {{- else }}
   Port-forward (no external hostname configured):
 {{- end }}
-  kubectl port-forward svc/{{ include "es-poc-cluster.fullname" . }} \
+  kubectl port-forward svc/{{ include "aimlp-search.fullname" . }} \
     9200:9200 -n {{ .Release.Namespace }}
-  export ES_URL={{ include "es-poc-cluster.httpScheme" . }}://localhost:9200
+  export ES_URL={{ include "aimlp-search.httpScheme" . }}://localhost:9200
 
   {{- if .Values.security.enabled }}
   The elastic superuser authenticates via the native realm -- it is always
@@ -71,7 +71,7 @@ STEP 2 -- Connect to the cluster
     -n {{ .Release.Namespace }} \
     -o jsonpath='{.data.ELASTIC_PASSWORD}' | base64 -d)
   {{- else }}
-  export ELASTIC_PASSWORD=$(kubectl get secret {{ include "es-poc-cluster.fullname" . }}-bootstrap \
+  export ELASTIC_PASSWORD=$(kubectl get secret {{ include "aimlp-search.fullname" . }}-bootstrap \
     -n {{ .Release.Namespace }} \
     -o jsonpath='{.data.ELASTIC_PASSWORD}' | base64 -d)
   {{- end }}
@@ -200,9 +200,9 @@ STEP {{ $step }} -- Enable Kibana
 ----------------------------------
 {{- if .Values.kibana.enabled }}
   Kibana is active in this release. Access it:
-  kubectl rollout status deployment/{{ include "es-poc-cluster.fullname" . }}-kibana \
+  kubectl rollout status deployment/{{ include "aimlp-search.fullname" . }}-kibana \
     -n {{ .Release.Namespace }}
-  kubectl port-forward svc/{{ include "es-poc-cluster.fullname" . }}-kibana 5601:5601 \
+  kubectl port-forward svc/{{ include "aimlp-search.fullname" . }}-kibana 5601:5601 \
     -n {{ .Release.Namespace }}
   # Open: http://localhost:5601 -- log in as elastic / <ELASTIC_PASSWORD>
 
@@ -244,7 +244,7 @@ STEP {{ $step }} -- Enable Kibana
     -n {{ .Release.Namespace }}
 
   Access Kibana after the rollout completes:
-  kubectl port-forward svc/{{ include "es-poc-cluster.fullname" . }}-kibana 5601:5601 \
+  kubectl port-forward svc/{{ include "aimlp-search.fullname" . }}-kibana 5601:5601 \
     -n {{ .Release.Namespace }}
   # Open: http://localhost:5601 -- log in as elastic / <ELASTIC_PASSWORD>
 
@@ -339,8 +339,8 @@ BREAKING CHANGE (v0.6.0): Client Service renamed from <fullname>-ingest to <full
   The dedicated ingest StatefulSet was removed in v0.6.0. Ingest pipelines now
   run on data nodes (data+ingest roles). The client-facing Service was renamed:
 
-    Before: {{ include "es-poc-cluster.fullname" . }}-ingest.{{ .Release.Namespace }}.svc:9200
-    After:  {{ include "es-poc-cluster.fullname" . }}.{{ .Release.Namespace }}.svc:9200
+    Before: {{ include "aimlp-search.fullname" . }}-ingest.{{ .Release.Namespace }}.svc:9200
+    After:  {{ include "aimlp-search.fullname" . }}.{{ .Release.Namespace }}.svc:9200
 
   ACTION REQUIRED for any application or independently-managed Kibana that
   previously connected to <release>-ingest (or <fullname>-ingest):

@@ -1,6 +1,6 @@
 # Sandbox -- 3 master + 3 data nodes; 100 Gi per data pod = 300 Gi raw.
 # Security posture matches nonprod/prod: xpack.security on, TLS on, Istio mTLS.
-# Usage: helm template es-poc-cluster . -f environments/sandbox.yaml -n <namespace>
+# Usage: helm template aimlp-search . -f environments/sandbox.yaml -n <namespace>
 #   -n is required: without it Helm falls back to the active kubeconfig namespace,
 #   making generated YAML non-reproducible across machines and CI runs.
 #

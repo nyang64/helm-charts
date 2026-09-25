@@ -5,19 +5,19 @@
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
-  name: {{ include "es-poc-cluster.fullname" . }}
+  name: {{ include "aimlp-search.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    {{- include "aimlp-search.labels" . | nindent 4 }}
 spec:
   hosts:
   - {{ .Values.istio.gateway.hostname | quote }}
   gateways:
-  - {{ include "es-poc-cluster.fullname" . }}
+  - {{ include "aimlp-search.fullname" . }}
   http:
   - route:
     - destination:
-        host: {{ include "es-poc-cluster.fullname" . }}
+        host: {{ include "aimlp-search.fullname" . }}
         port:
           number: 9200
 {{- end }}

@@ -1,7 +1,7 @@
 # Non-production -- 9-15 TB raw x 3 replicas = half of prod capacity across 5 data pods.
 # Per-pod storage matches prod (3Ti each) because half the data with half the nodes
 # works out to the same per-node footprint.
-# Usage: helm template es-poc-cluster . -f environments/nonprod.yaml -n <namespace>
+# Usage: helm template aimlp-search . -f environments/nonprod.yaml -n <namespace>
 #   -n is required: without it Helm falls back to the active kubeconfig namespace,
 #   making generated YAML non-reproducible across machines and CI runs.
 

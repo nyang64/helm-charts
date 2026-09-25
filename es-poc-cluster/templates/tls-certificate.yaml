@@ -2,11 +2,11 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ include "es-poc-cluster.fullname" . }}
+  name: {{ include "aimlp-search.fullname" . }}
   labels:
-    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    {{- include "aimlp-search.labels" . | nindent 4 }}
 spec:
-  secretName: {{ include "es-poc-cluster.tlsSecretName" . }}
+  secretName: {{ include "aimlp-search.tlsSecretName" . }}
   duration: {{ .Values.tls.duration }}
   renewBefore: {{ .Values.tls.renewBefore }}
   # usages must include both serverAuth and clientAuth because ES transport TLS is mutual:
@@ -19,15 +19,15 @@ spec:
     - digital signature
     - key encipherment
   issuerRef:
-    name: {{ include "es-poc-cluster.tlsIssuerName" . }}
+    name: {{ include "aimlp-search.tlsIssuerName" . }}
     kind: Issuer
   dnsNames:
-    - {{ include "es-poc-cluster.fullname" . }}
-    - {{ include "es-poc-cluster.fullname" . }}-master-headless
-    - {{ include "es-poc-cluster.fullname" . }}-data-headless
-    - {{ include "es-poc-cluster.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
-    - {{ include "es-poc-cluster.fullname" . }}-master-headless.{{ .Release.Namespace }}.svc.cluster.local
-    - {{ include "es-poc-cluster.fullname" . }}-data-headless.{{ .Release.Namespace }}.svc.cluster.local
-    - "*.{{ include "es-poc-cluster.fullname" . }}-master-headless.{{ .Release.Namespace }}.svc.cluster.local"
-    - "*.{{ include "es-poc-cluster.fullname" . }}-data-headless.{{ .Release.Namespace }}.svc.cluster.local"
+    - {{ include "aimlp-search.fullname" . }}
+    - {{ include "aimlp-search.fullname" . }}-master-headless
+    - {{ include "aimlp-search.fullname" . }}-data-headless
+    - {{ include "aimlp-search.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+    - {{ include "aimlp-search.fullname" . }}-master-headless.{{ .Release.Namespace }}.svc.cluster.local
+    - {{ include "aimlp-search.fullname" . }}-data-headless.{{ .Release.Namespace }}.svc.cluster.local
+    - "*.{{ include "aimlp-search.fullname" . }}-master-headless.{{ .Release.Namespace }}.svc.cluster.local"
+    - "*.{{ include "aimlp-search.fullname" . }}-data-headless.{{ .Release.Namespace }}.svc.cluster.local"
 {{- end }}

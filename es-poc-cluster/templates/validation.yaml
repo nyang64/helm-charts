@@ -3,7 +3,7 @@ Validate that incompatible value combinations are caught at template render time
 not at Elasticsearch startup time inside the cluster.
 */}}
 
-{{- $fullname := include "es-poc-cluster.fullname" . }}
+{{- $fullname := include "aimlp-search.fullname" . }}
 {{- if gt (len $fullname) 47 }}
 {{- fail (printf "Invalid configuration: computed fullname '%s' (%d chars) exceeds 47 characters. The longest resource suffix is '-master-headless' (16 chars); fullname + suffix must stay within Kubernetes' 63-char DNS name limit. Shorten nameOverride or fullnameOverride." $fullname (len $fullname)) }}
 {{- end }}

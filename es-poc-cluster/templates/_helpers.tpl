@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "es-poc-cluster.name" -}}
+{{- define "aimlp-search.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "es-poc-cluster.fullname" -}}
+{{- define "aimlp-search.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -26,16 +26,16 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "es-poc-cluster.chart" -}}
+{{- define "aimlp-search.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "es-poc-cluster.labels" -}}
-helm.sh/chart: {{ include "es-poc-cluster.chart" . }}
-{{ include "es-poc-cluster.selectorLabels" . }}
+{{- define "aimlp-search.labels" -}}
+helm.sh/chart: {{ include "aimlp-search.chart" . }}
+{{ include "aimlp-search.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -45,17 +45,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "es-poc-cluster.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "es-poc-cluster.name" . }}
+{{- define "aimlp-search.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "aimlp-search.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "es-poc-cluster.serviceAccountName" -}}
+{{- define "aimlp-search.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "es-poc-cluster.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "aimlp-search.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
@@ -63,9 +63,9 @@ Create the name of the service account to use
 
 {{/*
 Render podAntiAffinity block for a given role and antiAffinity setting.
-Usage: include "es-poc-cluster.antiAffinity" (list . "master" .Values.master.antiAffinity)
+Usage: include "aimlp-search.antiAffinity" (list . "master" .Values.master.antiAffinity)
 */}}
-{{- define "es-poc-cluster.antiAffinity" -}}
+{{- define "aimlp-search.antiAffinity" -}}
 {{- $root := index . 0 -}}
 {{- $role := index . 1 -}}
 {{- $mode := index . 2 -}}
@@ -75,7 +75,7 @@ affinity:
     requiredDuringSchedulingIgnoredDuringExecution:
       - labelSelector:
           matchLabels:
-            {{- include "es-poc-cluster.selectorLabels" $root | nindent 12 }}
+            {{- include "aimlp-search.selectorLabels" $root | nindent 12 }}
             role: {{ $role }}
         topologyKey: kubernetes.io/hostname
 {{- else if eq $mode "preferred" }}
@@ -86,7 +86,7 @@ affinity:
         podAffinityTerm:
           labelSelector:
             matchLabels:
-              {{- include "es-poc-cluster.selectorLabels" $root | nindent 14 }}
+              {{- include "aimlp-search.selectorLabels" $root | nindent 14 }}
               role: {{ $role }}
           topologyKey: kubernetes.io/hostname
 {{- end }}
@@ -97,25 +97,25 @@ HTTP scheme for ES port 9200.
 When Istio is enabled, Envoy handles TLS on 9200 -- ES listens plain HTTP internally.
 When Istio is disabled, scheme follows tls.enabled.
 */}}
-{{- define "es-poc-cluster.httpScheme" -}}
+{{- define "aimlp-search.httpScheme" -}}
 {{- if or .Values.istio.enabled (not .Values.tls.enabled) -}}http{{- else -}}https{{- end -}}
 {{- end }}
 
 {{/* TLS secret name -- defaults to <fullname>-tls so two releases in the same namespace don't collide */}}
-{{- define "es-poc-cluster.tlsSecretName" -}}
-{{- .Values.tls.secretName | default (printf "%s-tls" (include "es-poc-cluster.fullname" .)) -}}
+{{- define "aimlp-search.tlsSecretName" -}}
+{{- .Values.tls.secretName | default (printf "%s-tls" (include "aimlp-search.fullname" .)) -}}
 {{- end }}
 
 {{/* TLS issuer name -- defaults to <fullname>-issuer */}}
-{{- define "es-poc-cluster.tlsIssuerName" -}}
-{{- .Values.tls.issuerName | default (printf "%s-issuer" (include "es-poc-cluster.fullname" .)) -}}
+{{- define "aimlp-search.tlsIssuerName" -}}
+{{- .Values.tls.issuerName | default (printf "%s-issuer" (include "aimlp-search.fullname" .)) -}}
 {{- end }}
 
 {{/*
 Generate comma-separated list of master pod names for cluster.initial_master_nodes
 */}}
-{{- define "es-poc-cluster.masterNodes" -}}
-{{- $fullname := include "es-poc-cluster.fullname" . -}}
+{{- define "aimlp-search.masterNodes" -}}
+{{- $fullname := include "aimlp-search.fullname" . -}}
 {{- $replicas := .Values.master.replicas | int -}}
 {{- range $i, $e := until $replicas -}}
   {{- if $i }},{{ end -}}
@@ -131,7 +131,7 @@ to the subPath-mounted keystore file at runtime -- that write uses an atomic ren
 bypasses the bind-mount inode, causing ES to start with a keystore missing the S3 keys.
 Enabled only when snapshot.repository.s3.credentialsSecret is set.
 */}}
-{{- define "es-poc-cluster.keystoreInitContainer" -}}
+{{- define "aimlp-search.keystoreInitContainer" -}}
 {{- if and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") .Values.snapshot.repository.s3.credentialsSecret -}}
 - name: keystore-init
   image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -169,7 +169,7 @@ Enabled only when snapshot.repository.s3.credentialsSecret is set.
     - name: ELASTIC_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: {{ .Values.elasticPassword.existingSecret | default (printf "%s-bootstrap" (include "es-poc-cluster.fullname" .)) }}
+          name: {{ .Values.elasticPassword.existingSecret | default (printf "%s-bootstrap" (include "aimlp-search.fullname" .)) }}
           key: ELASTIC_PASSWORD
     {{- end }}
   volumeMounts:
@@ -185,7 +185,7 @@ Not readOnly: the ES entrypoint writes bootstrap.password via atomic rename; tha
 creates a new inode at the config path, leaving the bind-mount pointing at our pre-built
 inode. The pre-built keystore already contains bootstrap.password so ES starts correctly.
 */}}
-{{- define "es-poc-cluster.keystoreVolumeMount" -}}
+{{- define "aimlp-search.keystoreVolumeMount" -}}
 {{- if and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") .Values.snapshot.repository.s3.credentialsSecret -}}
 - name: keystore
   mountPath: /usr/share/elasticsearch/config/elasticsearch.keystore
@@ -196,7 +196,7 @@ inode. The pre-built keystore already contains bootstrap.password so ES starts c
 {{/*
 Keystore emptyDir volume -- shared between keystoreInitContainer and the main ES container.
 */}}
-{{- define "es-poc-cluster.keystoreVolume" -}}
+{{- define "aimlp-search.keystoreVolume" -}}
 {{- if and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") .Values.snapshot.repository.s3.credentialsSecret -}}
 - name: keystore
   emptyDir: {}

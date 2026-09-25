@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "es-poc-cluster.fullname" . }}-master
+  name: {{ include "aimlp-search.fullname" . }}-master
   labels:
-    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+    {{- include "aimlp-search.labels" . | nindent 4 }}
     role: master
 spec:
-  serviceName: {{ include "es-poc-cluster.fullname" . }}-master-headless
+  serviceName: {{ include "aimlp-search.fullname" . }}-master-headless
   replicas: {{ .Values.master.replicas }}
   # Parallel so all master pods start simultaneously and can reach quorum for the initial
   # master election. With the default OrderedReady, pod-1 never starts because pod-0 needs
@@ -16,12 +16,12 @@ spec:
     type: RollingUpdate
   selector:
     matchLabels:
-      {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+      {{- include "aimlp-search.selectorLabels" . | nindent 6 }}
       role: master
   template:
     metadata:
       labels:
-        {{- include "es-poc-cluster.selectorLabels" . | nindent 8 }}
+        {{- include "aimlp-search.selectorLabels" . | nindent 8 }}
         role: master
       annotations:
         # Checksums force a rolling restart when ConfigMap/Secret content changes.
@@ -37,7 +37,7 @@ spec:
         traffic.sidecar.istio.io/excludeOutboundPorts: "9300"
         {{- end }}
     spec:
-      serviceAccountName: {{ include "es-poc-cluster.serviceAccountName" . }}
+      serviceAccountName: {{ include "aimlp-search.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       terminationGracePeriodSeconds: 120
       securityContext:
@@ -46,7 +46,7 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
-      {{- include "es-poc-cluster.antiAffinity" (list . "master" .Values.master.antiAffinity) | nindent 6 }}
+      {{- include "aimlp-search.antiAffinity" (list . "master" .Values.master.antiAffinity) | nindent 6 }}
       {{- if or .Values.sysctl.enabled (and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") .Values.snapshot.repository.s3.credentialsSecret) }}
       initContainers:
         {{- if .Values.sysctl.enabled }}
@@ -58,7 +58,7 @@ spec:
             runAsNonRoot: false
           command: ["sysctl", "-w", "vm.max_map_count=262144"]
         {{- end }}
-        {{- include "es-poc-cluster.keystoreInitContainer" . | nindent 8 }}
+        {{- include "aimlp-search.keystoreInitContainer" . | nindent 8 }}
       {{- end }}
       containers:
         - name: elasticsearch
@@ -70,7 +70,7 @@ spec:
               drop:
                 - ALL
           ports:
-            - name: {{ include "es-poc-cluster.httpScheme" . }}
+            - name: {{ include "aimlp-search.httpScheme" . }}
               containerPort: 9200
             - name: transport
               containerPort: 9300
@@ -78,16 +78,16 @@ spec:
             - name: node.roles
               value: "master"
             - name: discovery.seed_hosts
-              value: {{ include "es-poc-cluster.fullname" . }}-master-headless
+              value: {{ include "aimlp-search.fullname" . }}-master-headless
             {{- if not .Values.master.bootstrapped }}
             - name: cluster.initial_master_nodes
-              value: {{ include "es-poc-cluster.masterNodes" . }}
+              value: {{ include "aimlp-search.masterNodes" . }}
             {{- end }}
             {{- if .Values.security.enabled }}
             - name: ELASTIC_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.elasticPassword.existingSecret | default (printf "%s-bootstrap" (include "es-poc-cluster.fullname" .)) }}
+                  name: {{ .Values.elasticPassword.existingSecret | default (printf "%s-bootstrap" (include "aimlp-search.fullname" .)) }}
                   key: ELASTIC_PASSWORD
             {{- end }}
           resources:
@@ -97,7 +97,7 @@ spec:
               command:
                 - sh
                 - -c
-                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }}{{ if .Values.security.enabled }} -u "elastic:${ELASTIC_PASSWORD}"{{ end }} "{{ include "es-poc-cluster.httpScheme" . }}://localhost:9200/_cluster/health?local=true"'
+                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }}{{ if .Values.security.enabled }} -u "elastic:${ELASTIC_PASSWORD}"{{ end }} "{{ include "aimlp-search.httpScheme" . }}://localhost:9200/_cluster/health?local=true"'
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.startup.failureThreshold }}
@@ -109,7 +109,7 @@ spec:
                 # local=true: queries the local node directly, not the master. Without it a
                 # master outage causes the cluster-health API to block past the probe timeout,
                 # triggering liveness failures on healthy data nodes.
-                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }}{{ if .Values.security.enabled }} -u "elastic:${ELASTIC_PASSWORD}"{{ end }} "{{ include "es-poc-cluster.httpScheme" . }}://localhost:9200/_cluster/health?local=true"'
+                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }}{{ if .Values.security.enabled }} -u "elastic:${ELASTIC_PASSWORD}"{{ end }} "{{ include "aimlp-search.httpScheme" . }}://localhost:9200/_cluster/health?local=true"'
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
@@ -119,7 +119,7 @@ spec:
               command:
                 - sh
                 - -c
-                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }}{{ if .Values.security.enabled }} -u "elastic:${ELASTIC_PASSWORD}"{{ end }} "{{ include "es-poc-cluster.httpScheme" . }}://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"'
+                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }}{{ if .Values.security.enabled }} -u "elastic:${ELASTIC_PASSWORD}"{{ end }} "{{ include "aimlp-search.httpScheme" . }}://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"'
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
@@ -140,7 +140,7 @@ spec:
               mountPath: /usr/share/elasticsearch/config/certs
               readOnly: true
             {{- end }}
-            {{- include "es-poc-cluster.keystoreVolumeMount" . | nindent 12 }}
+            {{- include "aimlp-search.keystoreVolumeMount" . | nindent 12 }}
             - name: jvm-options
               mountPath: /usr/share/elasticsearch/config/jvm.options.d/heap.options
               subPath: heap.options
@@ -148,22 +148,22 @@ spec:
       volumes:
         - name: es-config
           configMap:
-            name: {{ include "es-poc-cluster.fullname" . }}-config
+            name: {{ include "aimlp-search.fullname" . }}-config
         - name: es-roles
           configMap:
-            name: {{ include "es-poc-cluster.fullname" . }}-roles
+            name: {{ include "aimlp-search.fullname" . }}-roles
         - name: jvm-options
           configMap:
-            name: {{ include "es-poc-cluster.fullname" . }}-jvm-options
+            name: {{ include "aimlp-search.fullname" . }}-jvm-options
             items:
               - key: master-heap.options
                 path: heap.options
         {{- if .Values.tls.enabled }}
         - name: tls-certs
           secret:
-            secretName: {{ include "es-poc-cluster.tlsSecretName" . }}
+            secretName: {{ include "aimlp-search.tlsSecretName" . }}
         {{- end }}
-        {{- include "es-poc-cluster.keystoreVolume" . | nindent 8 }}
+        {{- include "aimlp-search.keystoreVolume" . | nindent 8 }}
   volumeClaimTemplates:
     - metadata:
         name: data
