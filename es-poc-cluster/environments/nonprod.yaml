@@ -69,20 +69,6 @@ data:
   storage:
     size: "3Ti"           # 3 TiB per pod (~3.3 TB); 5 pods = 15 Ti total raw
 
-# Ingest -- 2 pods; pre-process documents before indexing (pipeline transformations, enrichment).
-# Vectors arrive pre-computed from an external embedding service.
-ingest:
-  replicas: 2
-  heapSize: "4g"
-  antiAffinity: "preferred"
-  resources:
-    requests:
-      cpu: "2000m"
-      memory: "8Gi"
-    limits:
-      cpu: "4000m"
-      memory: "8Gi"
-
 probes:
   liveness:
     initialDelaySeconds: 90
@@ -102,9 +88,6 @@ pdb:
   data:
     enabled: true
     minAvailable: 3   # tolerates loss of 2 out of 5 data pods
-  ingest:
-    enabled: true
-    minAvailable: 1   # keep 1 of 2 ingest pods available at all times
 
 # Snapshot / backup -- NetApp HPOS S3 on-prem.
 # Pre-requisite:

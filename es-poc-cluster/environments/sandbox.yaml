@@ -99,20 +99,6 @@ data:
   storage:
     size: "1Ti"           # 1 TiB per pod (~1.1 TB); covers 750 GB with headroom
 
-# Ingest -- 1 pod; pre-process documents before indexing (pipeline transformations, enrichment).
-# Vectors arrive pre-computed from an external embedding service.
-ingest:
-  replicas: 1
-  heapSize: "512m"
-  antiAffinity: "disabled"
-  resources:
-    requests:
-      cpu: "1000m"
-      memory: "1Gi"
-    limits:
-      cpu: "2000m"
-      memory: "1Gi"
-
 # Generous startup window -- sandbox clusters are slow to form.
 probes:
   liveness:
@@ -131,8 +117,6 @@ pdb:
     enabled: false   # 1 replica -- PDB would block all voluntary disruptions
   data:
     enabled: false
-  ingest:
-    enabled: false   # 1 replica -- PDB would block all voluntary disruptions
 
 # Snapshot / backup -- NetApp HPOS S3 on-prem.
 # Pre-requisite:

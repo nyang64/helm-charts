@@ -24,7 +24,7 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    # Kibana → ES HTTP port. Reaches ingest pods via the -ingest ClusterIP service.
+    # Kibana → ES HTTP port. Reaches data pods via the ES client ClusterIP service.
     - to:
         - podSelector:
             matchLabels:

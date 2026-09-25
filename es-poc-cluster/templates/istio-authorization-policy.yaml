@@ -47,7 +47,7 @@ metadata:
   name: {{ include "es-poc-cluster.fullname" . }}
   labels:
     {{- include "es-poc-cluster.labels" . | nindent 4 }}
-# Policy 1: Elasticsearch pods (master, data, ingest) -- ports 9200 and 9300 only.
+# Policy 1: Elasticsearch pods (master, data) -- ports 9200 and 9300 only.
 # Kibana pods also match this selector (shared chart labels), but Istio ALLOW
 # policies use union semantics: a request is allowed if ANY matching ALLOW policy
 # allows it. Policy 2 below explicitly allows port 5601 on Kibana pods, so the
@@ -66,7 +66,7 @@ spec:
       to:
         - operation:
             ports: ["9200", "9300"]
-    # Rule 2: App pods and the model-loader Job in the same namespace -- HTTP only
+    # Rule 2: App pods in the same namespace -- HTTP only
     - from:
         - source:
             namespaces: ["{{ .Release.Namespace }}"]

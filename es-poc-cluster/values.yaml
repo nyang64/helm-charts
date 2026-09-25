@@ -70,7 +70,9 @@ master:
     size: "10Gi"
     storageClassName: ""      # leave empty to use cluster default StorageClass
 
-# Data nodes -- store and search the data
+# Data nodes -- store, search, and pre-process documents (data+ingest roles).
+# Pipeline transformations and enrichment run on data pods; vectors arrive
+# pre-computed from an external embedding service.
 data:
   replicas: 6
   heapSize: "1g"
@@ -84,25 +86,6 @@ data:
       memory: "2Gi"
   storage:
     size: "100Gi"
-    storageClassName: ""
-
-# Ingest nodes -- pre-process documents before indexing (pipeline transformations, enrichment).
-# Embedding is performed by an external service; vectors arrive pre-computed from the client.
-ingest:
-  replicas: 2
-  heapSize: "512m"
-  antiAffinity: "preferred"
-  persistence:
-    enabled: false            # uses emptyDir by default; enable for ingest attachment pipelines
-  resources:
-    requests:
-      cpu: "500m"
-      memory: "1Gi"
-    limits:
-      cpu: "1000m"
-      memory: "1Gi"
-  storage:                     # only used when persistence.enabled=true
-    size: "10Gi"
     storageClassName: ""
 
 # IMPORTANT -- PVC template immutability:
@@ -300,8 +283,5 @@ pdb:
   data:
     enabled: true
     minAvailable: 1
-  ingest:
-    enabled: true
-    minAvailable: 1   # always keep at least 1 ingest pod -- it is the sole client entry point
 
 

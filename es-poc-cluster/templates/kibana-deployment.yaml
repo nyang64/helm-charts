@@ -62,7 +62,7 @@ spec:
           env:
             # ES connection -- resolved at runtime so no ConfigMap update is needed on cluster rename.
             - name: ELASTICSEARCH_HOSTS
-              value: "{{ include "es-poc-cluster.httpScheme" . }}://{{ include "es-poc-cluster.fullname" . }}-ingest.{{ .Release.Namespace }}.svc:9200"
+              value: "{{ include "es-poc-cluster.httpScheme" . }}://{{ include "es-poc-cluster.fullname" . }}.{{ .Release.Namespace }}.svc:9200"
             - name: ELASTICSEARCH_SERVICEACCOUNTTOKEN
               valueFrom:
                 secretKeyRef:

@@ -63,15 +63,6 @@
         "antiAffinity": { "type": "string", "enum": ["required", "preferred", "disabled"] }
       }
     },
-    "ingest": {
-      "type": "object",
-      "required": ["replicas"],
-      "properties": {
-        "replicas": { "type": "integer", "minimum": 1 },
-        "heapSize": { "type": "string", "pattern": "^[0-9]+(m|g)$" },
-        "antiAffinity": { "type": "string", "enum": ["required", "preferred", "disabled"] }
-      }
-    },
     "istio": {
       "type": "object",
       "properties": {
@@ -150,13 +141,6 @@
           }
         },
         "data": {
-          "type": "object",
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "minAvailable": { "type": "integer", "minimum": 0 }
-          }
-        },
-        "ingest": {
           "type": "object",
           "properties": {
             "enabled": { "type": "boolean" },

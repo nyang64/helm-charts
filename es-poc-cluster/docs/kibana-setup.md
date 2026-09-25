@@ -41,10 +41,10 @@ Applies to both paths:
 
    # ES URL — adjust TLS flag based on your setup
    # tls.enabled=true and istio.enabled=false:
-   ES_URL="https://${RELEASE}-ingest.${ES_NAMESPACE}.svc:9200"
+   ES_URL="https://${RELEASE}.${ES_NAMESPACE}.svc:9200"
    CURL_TLS="-k"   # or --cacert /path/to/ca.crt for strict validation
    # istio.enabled=true (Istio handles mTLS, plain HTTP inside pod):
-   # ES_URL="http://${RELEASE}-ingest.${ES_NAMESPACE}.svc:9200"
+   # ES_URL="http://${RELEASE}.${ES_NAMESPACE}.svc:9200"
    # CURL_TLS=""
    ```
 
@@ -53,7 +53,7 @@ Applies to both paths:
 ## Common Step 1 — Create the ES service account token
 
 This step is identical for both integration paths. Run it from a pod or machine
-that can reach the ES ingest service.
+that can reach the ES service.
 
 ```bash
 curl -sf ${CURL_TLS} -u "elastic:${ELASTIC_PASSWORD}" \
@@ -102,8 +102,8 @@ this Helm release, in the same namespace as ES.
 | NetworkPolicy | `<release>-kibana` | egress → ES:9200 + DNS; ingress → 5601 |
 
 **ES connection inside the chart:**
-- `istio.enabled=true` → `http://<release>-ingest.<namespace>.svc:9200` (Envoy mTLS)
-- `istio.enabled=false` → `https://<release>-ingest.<namespace>.svc:9200` + CA cert mounted
+- `istio.enabled=true` → `http://<release>.<namespace>.svc:9200` (Envoy mTLS)
+- `istio.enabled=false` → `https://<release>.<namespace>.svc:9200` + CA cert mounted
 
 ### Step A-1 — Create the K8s token secret
 
@@ -210,9 +210,9 @@ manages only the ES side; Kibana configuration is your responsibility.
 
 Set `kibana.enabled: false` (the default) — this chart renders no Kibana resources.
 
-### Step B-1 — Expose the ES ingest service externally
+### Step B-1 — Expose the ES client service externally
 
-The ingest Service is ClusterIP by default, reachable only inside the ES cluster.
+The ES client Service is ClusterIP by default, reachable only inside the ES cluster.
 Choose one exposure method:
 
 **Option 1: Istio Gateway with PASSTHROUGH (non-Istio ES cluster, `istio.enabled=false`)**
@@ -253,7 +253,7 @@ spec:
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
-  name: es-ingest
+  name: es-client
   namespace: <es-namespace>
 spec:
   hosts:
@@ -267,7 +267,7 @@ spec:
             - es.<your-domain>
       route:
         - destination:
-            host: <release>-ingest.<es-namespace>.svc.cluster.local
+            host: <release>.<es-namespace>.svc.cluster.local
             port:
               number: 9200
 ```
@@ -278,12 +278,12 @@ Istio AuthorizationPolicy Rule 4 allows the ingress gateway to reach ES port 920
 **Option 2: LoadBalancer service** (Istio or non-Istio; on-prem with MetalLB)
 
 ```bash
-# Patch the ingest service to type LoadBalancer (apply in the ES cluster)
-kubectl patch svc ${RELEASE}-ingest -n ${ES_NAMESPACE} \
+# Patch the ES client service to type LoadBalancer (apply in the ES cluster)
+kubectl patch svc ${RELEASE} -n ${ES_NAMESPACE} \
   -p '{"spec":{"type":"LoadBalancer"}}'
 
 # Get the external IP once provisioned
-kubectl get svc ${RELEASE}-ingest -n ${ES_NAMESPACE} \
+kubectl get svc ${RELEASE} -n ${ES_NAMESPACE} \
   -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 ```
 

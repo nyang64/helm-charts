@@ -22,15 +22,12 @@ spec:
     name: {{ include "es-poc-cluster.tlsIssuerName" . }}
     kind: Issuer
   dnsNames:
-    - {{ include "es-poc-cluster.fullname" . }}-ingest
+    - {{ include "es-poc-cluster.fullname" . }}
     - {{ include "es-poc-cluster.fullname" . }}-master-headless
     - {{ include "es-poc-cluster.fullname" . }}-data-headless
-    - {{ include "es-poc-cluster.fullname" . }}-ingest-headless
-    - {{ include "es-poc-cluster.fullname" . }}-ingest.{{ .Release.Namespace }}.svc.cluster.local
+    - {{ include "es-poc-cluster.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
     - {{ include "es-poc-cluster.fullname" . }}-master-headless.{{ .Release.Namespace }}.svc.cluster.local
     - {{ include "es-poc-cluster.fullname" . }}-data-headless.{{ .Release.Namespace }}.svc.cluster.local
-    - {{ include "es-poc-cluster.fullname" . }}-ingest-headless.{{ .Release.Namespace }}.svc.cluster.local
     - "*.{{ include "es-poc-cluster.fullname" . }}-master-headless.{{ .Release.Namespace }}.svc.cluster.local"
     - "*.{{ include "es-poc-cluster.fullname" . }}-data-headless.{{ .Release.Namespace }}.svc.cluster.local"
-    - "*.{{ include "es-poc-cluster.fullname" . }}-ingest-headless.{{ .Release.Namespace }}.svc.cluster.local"
 {{- end }}

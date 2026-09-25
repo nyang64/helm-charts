@@ -69,7 +69,7 @@ spec:
               containerPort: 9300
           env:
             - name: node.roles
-              value: "data"
+              value: "data,ingest"
             - name: ES_JAVA_OPTS
               value: "-Xms{{ .Values.data.heapSize }} -Xmx{{ .Values.data.heapSize }}"
             - name: discovery.seed_hosts

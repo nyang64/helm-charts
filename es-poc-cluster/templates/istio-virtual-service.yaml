@@ -1,5 +1,5 @@
 {{- if and .Values.istio.enabled .Values.istio.gateway.hostname }}
-# Routes external traffic from the Gateway to the ES ingest (client) service.
+# Routes external traffic from the Gateway to the ES client service.
 # Internal mesh traffic continues to reach ES directly via ClusterIP -- this VS
 # only handles the north-south path from the Istio ingress gateway pod.
 apiVersion: networking.istio.io/v1beta1
@@ -17,7 +17,7 @@ spec:
   http:
   - route:
     - destination:
-        host: {{ include "es-poc-cluster.fullname" . }}-ingest
+        host: {{ include "es-poc-cluster.fullname" . }}
         port:
           number: 9200
 {{- end }}

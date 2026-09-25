@@ -109,7 +109,7 @@ spec:
                 - -c
                 # local=true: queries the local node directly, not the master. Without it a
                 # master outage causes the cluster-health API to block past the probe timeout,
-                # triggering liveness failures on healthy data/ingest nodes.
+                # triggering liveness failures on healthy data nodes.
                 - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }}{{ if .Values.security.enabled }} -u "elastic:${ELASTIC_PASSWORD}"{{ end }} "{{ include "es-poc-cluster.httpScheme" . }}://localhost:9200/_cluster/health?local=true"'
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
