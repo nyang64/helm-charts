@@ -20,15 +20,15 @@ Applies to both paths:
 
 1. ES cluster is healthy — all pods Running/Ready:
    ```bash
-   kubectl get pods -n <es-namespace>
+   kubectl get pods -n elastic-system
    ```
 2. You have `elastic` credentials from the post-install runbook:
    ```bash
-   helm get notes <release> -n <es-namespace>
+   helm get notes <release> -n elastic-system
    ```
 3. Set shell variables for the steps below:
    ```bash
-   ES_NAMESPACE=<es-namespace>
+   ES_NAMESPACE=elastic-system
    RELEASE=<release-name>
 
    # Retrieve the elastic password.
@@ -236,7 +236,7 @@ apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
   name: es-gateway
-  namespace: <es-namespace>
+  namespace: elastic-system
 spec:
   selector:
     istio: ingressgateway
@@ -254,7 +254,7 @@ apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
   name: es-client
-  namespace: <es-namespace>
+  namespace: elastic-system
 spec:
   hosts:
     - es.<your-domain>
@@ -267,7 +267,7 @@ spec:
             - es.<your-domain>
       route:
         - destination:
-            host: <release>.<es-namespace>.svc.cluster.local
+            host: <release>.elastic-system.svc.cluster.local
             port:
               number: 9200
 ```

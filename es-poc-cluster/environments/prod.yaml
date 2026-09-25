@@ -1,13 +1,13 @@
 # Production -- 18-30 TB raw x 3 replicas across 10 data pods (3-5 Ti per pod).
 # Sized for 5 Ti per pod to cover the upper bound with headroom.
 # All secrets must be pre-created externally -- no passwords in this file.
-# Usage: helm template aimlp-search . -f environments/prod.yaml -n <namespace>
+# Usage: helm template aimlp-search . -f environments/prod.yaml -n elastic-system
 #   -n is required: without it Helm falls back to the active kubeconfig namespace,
 #   making generated YAML non-reproducible across machines and CI runs.
 #
 # Pre-requisites:
 #   kubectl create secret generic es-prod-elastic-secret \
-#     --from-literal=ELASTIC_PASSWORD=<vault-sourced-password> -n dia-es-poc
+#     --from-literal=ELASTIC_PASSWORD=<vault-sourced-password> -n elastic-system
 
 clusterName: es-prod
 fullnameOverride: "es-prod"
@@ -99,7 +99,7 @@ pdb:
 # Pre-requisite:
 #   kubectl create secret generic es-snapshot-s3-creds \
 #     --from-literal=access_key=<hpos-access-key> \
-#     --from-literal=secret_key=<hpos-secret-key> -n <namespace>
+#     --from-literal=secret_key=<hpos-secret-key> -n elastic-system
 snapshot:
   enabled: true
   repository:

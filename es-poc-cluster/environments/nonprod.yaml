@@ -1,7 +1,7 @@
 # Non-production -- 9-15 TB raw x 3 replicas = half of prod capacity across 5 data pods.
 # Per-pod storage matches prod (3Ti each) because half the data with half the nodes
 # works out to the same per-node footprint.
-# Usage: helm template aimlp-search . -f environments/nonprod.yaml -n <namespace>
+# Usage: helm template aimlp-search . -f environments/nonprod.yaml -n elastic-system
 #   -n is required: without it Helm falls back to the active kubeconfig namespace,
 #   making generated YAML non-reproducible across machines and CI runs.
 
@@ -33,7 +33,7 @@ tls:
 elasticPassword:
   existingSecret: "es-nonprod-elastic-secret"   # create before first deploy:
   # kubectl create secret generic es-nonprod-elastic-secret \
-  #   --from-literal=ELASTIC_PASSWORD="<strong-password>" -n <namespace>
+  #   --from-literal=ELASTIC_PASSWORD="<strong-password>" -n elastic-system
 
 # Master -- 3 nodes managing a 3-data-node cluster.
 # Cluster state is proportionally smaller than prod (~half the shards/indices).
@@ -93,7 +93,7 @@ pdb:
 # Pre-requisite:
 #   kubectl create secret generic es-snapshot-s3-creds \
 #     --from-literal=access_key=<hpos-access-key> \
-#     --from-literal=secret_key=<hpos-secret-key> -n <namespace>
+#     --from-literal=secret_key=<hpos-secret-key> -n elastic-system
 snapshot:
   enabled: true
   repository:
