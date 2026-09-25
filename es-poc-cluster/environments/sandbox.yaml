@@ -11,9 +11,8 @@
 #     --from-literal=ELASTIC_PASSWORD=<strong-password> -n <namespace>
 #
 #   vm.max_map_count=262144 must be set on every worker node BEFORE deploying.
-#   sysctl.enabled=false here because the privileged init container that sets it
-#   requires the OpenShift 'privileged' SCC, which is typically blocked in shared
-#   sandbox namespaces. Use the Node Tuning Operator instead (platform-team prereq):
+#   If the OpenShift 'privileged' SCC is blocked in this namespace, disable
+#   sysctl.enabled and use the Node Tuning Operator instead (platform-team prereq):
 #
 #     kubectl apply -f - <<EOF
 #     apiVersion: tuned.openshift.io/v1
@@ -52,10 +51,10 @@ istio:
     tls:
       mode: SIMPLE
       credentialName: ""
+  allowedNamespaces: []   # add namespaces of in-cluster apps that call ES directly, e.g. ["my-app"]
 
-# Disable privileged sysctl init container -- set vm.max_map_count on the node instead.
 sysctl:
-  enabled: false
+  enabled: true
 
 security:
   enabled: true
@@ -114,17 +113,16 @@ probes:
 
 pdb:
   master:
-    enabled: false   # 1 replica -- PDB would block all voluntary disruptions
+    enabled: true
+    minAvailable: 1   # 1-replica cluster; prevents disruption during maintenance
   data:
-    enabled: false
+    enabled: true
+    minAvailable: 1   # tolerates loss of 1 out of 2 data pods
 
-# Snapshot / backup -- NetApp HPOS S3 on-prem.
-# Pre-requisite:
-#   kubectl create secret generic es-snapshot-s3-creds \
-#     --from-literal=access_key=<hpos-access-key> \
-#     --from-literal=secret_key=<hpos-secret-key> -n <namespace>
+# Snapshot / backup disabled in sandbox -- no S3 egress or keystore init overhead.
+# To enable, set enabled: true and fill in bucket/endpoint/credentialsSecret.
 snapshot:
-  enabled: true
+  enabled: false
   repository:
     name: "backup"
     type: "s3"
@@ -140,4 +138,3 @@ snapshot:
       expireAfter: "7d"          # shorter retention for sandbox
       minCount: 3
       maxCount: 10
-
