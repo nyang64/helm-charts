@@ -1,4 +1,4 @@
-# Sandbox -- 500 GB raw x 3 replicas = 1.5 TB total across 2 data pods (~750 GB each, rounded to 1Ti).
+# Sandbox -- 3 master + 3 data nodes; 100 Gi per data pod = 300 Gi raw.
 # Security posture matches nonprod/prod: xpack.security on, TLS on, Istio mTLS.
 # Usage: helm template es-poc-cluster . -f environments/sandbox.yaml -n <namespace>
 #   -n is required: without it Helm falls back to the active kubeconfig namespace,
@@ -67,11 +67,11 @@ tls:
 elasticPassword:
   existingSecret: "es-sandbox-elastic-secret"
 
-# Master -- 1 node, minimal: tracks 2 data nodes + a handful of shards
+# Master -- 3 nodes; quorum-safe even in sandbox
 master:
-  replicas: 1
-  heapSize: "512m"       # tiny cluster state; 512 MB heap is more than enough
-  antiAffinity: "disabled"
+  replicas: 3
+  heapSize: "512m"       # small cluster state; 512 MB heap is more than enough
+  antiAffinity: "preferred"
   bootstrapped: false
   resources:
     requests:
@@ -83,11 +83,11 @@ master:
   storage:
     size: "10Gi"          # cluster state + logs only, no index data on master
 
-# Data -- 2 pods x 1 Ti each = 2 Ti raw capacity; with replication covers 500 GB x 3
+# Data -- 3 pods x 100 Gi each = 300 Gi raw capacity
 data:
-  replicas: 2
+  replicas: 3
   heapSize: "2g"         # 50% of 4 Gi RAM; leaves 2 Gi for Lucene OS page cache
-  antiAffinity: "disabled"
+  antiAffinity: "preferred"
   resources:
     requests:
       cpu: "1000m"
@@ -96,7 +96,7 @@ data:
       cpu: "2000m"
       memory: "4Gi"
   storage:
-    size: "1Ti"           # 1 TiB per pod (~1.1 TB); covers 750 GB with headroom
+    size: "100Gi"
 
 # Generous startup window -- sandbox clusters are slow to form.
 probes:
@@ -114,10 +114,10 @@ probes:
 pdb:
   master:
     enabled: true
-    minAvailable: 1   # 1-replica cluster; prevents disruption during maintenance
+    minAvailable: 2   # quorum requires at least 2 of 3 masters
   data:
     enabled: true
-    minAvailable: 1   # tolerates loss of 1 out of 2 data pods
+    minAvailable: 2   # tolerates loss of 1 out of 3 data pods
 
 # Snapshot / backup disabled in sandbox -- no S3 egress or keystore init overhead.
 # To enable, set enabled: true and fill in bucket/endpoint/credentialsSecret.
