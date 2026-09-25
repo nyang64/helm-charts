@@ -69,19 +69,19 @@ data:
   storage:
     size: "3Ti"           # 3 TiB per pod (~3.3 TB); 5 pods = 15 Ti total raw
 
-# Ingest -- 2 pods; BYO vector flow (client supplies pre-computed vectors, no on-cluster ML).
+# Ingest -- 2 pods; pre-process documents before indexing (pipeline transformations, enrichment).
+# Vectors arrive pre-computed from an external embedding service.
 ingest:
   replicas: 2
   heapSize: "4g"
-  mlEnabled: false
   antiAffinity: "preferred"
   resources:
     requests:
       cpu: "2000m"
-      memory: "16Gi"     # can be reduced to ~8Gi (heap*2) now that ML model weights are not loaded
+      memory: "8Gi"
     limits:
       cpu: "4000m"
-      memory: "16Gi"
+      memory: "8Gi"
 
 probes:
   liveness:

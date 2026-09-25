@@ -69,8 +69,7 @@
       "properties": {
         "replicas": { "type": "integer", "minimum": 1 },
         "heapSize": { "type": "string", "pattern": "^[0-9]+(m|g)$" },
-        "antiAffinity": { "type": "string", "enum": ["required", "preferred", "disabled"] },
-        "mlEnabled": { "type": "boolean" }
+        "antiAffinity": { "type": "string", "enum": ["required", "preferred", "disabled"] }
       }
     },
     "istio": {
@@ -138,17 +137,6 @@
             }
           }
         }
-      }
-    },
-    "ml": {
-      "type": "object",
-      "properties": {
-        "installJob": { "type": "boolean" },
-        "modelId": { "type": "string" },
-        "taskType": { "type": "string" },
-        "hubUrl": { "type": "string" },
-        "insecure": { "type": "boolean" },
-        "elandImage": { "type": "string" }
       }
     },
     "pdb": {

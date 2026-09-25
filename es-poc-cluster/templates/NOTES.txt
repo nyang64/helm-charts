@@ -2,7 +2,7 @@ Elasticsearch cluster {{ .Values.clusterName }} deployed to namespace {{ .Releas
 
   master : {{ .Values.master.replicas }} pods
   data   : {{ .Values.data.replicas }} pods  ({{ .Values.data.storage.size }} per pod)
-  ingest : {{ .Values.ingest.replicas }} pods{{ if .Values.ingest.mlEnabled }} [ingest+ml -- embedding model required]{{ end }}
+  ingest : {{ .Values.ingest.replicas }} pods
 
 Retrieve this runbook any time:
   helm get notes {{ .Release.Name }} -n {{ .Release.Namespace }}
@@ -253,104 +253,9 @@ STEP {{ $step }} -- Enable Kibana
   and full token rotation instructions.
 {{- end }}
 
-{{ if .Values.ingest.mlEnabled -}}
 {{- $step = add $step 1 }}
-STEP {{ $step }} -- Load the embedding model ({{ .Values.ml.modelId }})
------------------------------------------------------------------------
-  Apply the model-loader Job (runs once; retries up to 5 times if ES is not ready).
-  ml.installJob=true is required -- the Job is off by default to prevent it running
-  before the cluster is healthy:
-  kubectl apply -f <(helm template {{ .Release.Name }} . \
-    -f environments/<your-env>.yaml \
-    --show-only templates/model-loader-job.yaml \
-    --set ml.installJob=true) \
-    -n {{ .Release.Namespace }}
-
-  Watch progress:
-  kubectl logs -f job/{{ include "es-poc-cluster.fullname" . }}-model-loader \
-    -n {{ .Release.Namespace }}
-
-  Wait until the log shows the model started successfully.
-
-  Note: eland normalises the model ID for ES storage -- forward slashes become
-  double underscores:  {{ .Values.ml.modelId }} -> {{ .Values.ml.modelId | replace "/" "__" }}
-
-  To swap models later, delete the Job then re-apply with a new ml.modelId:
-  kubectl delete job {{ include "es-poc-cluster.fullname" . }}-model-loader \
-    -n {{ .Release.Namespace }}
-
-
-{{- $step = add $step 1 }}
-STEP {{ $step }} -- Create an inference endpoint
-------------------------------------------------
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    -X PUT "$ES_URL/_inference/text_embedding/{{ .Values.ml.modelId | replace "/" "-" | lower }}" \
-    -H "Content-Type: application/json" -d '
-    {
-      "service": "elasticsearch",
-      "service_settings": {
-        "model_id": "{{ .Values.ml.modelId | replace "/" "__" | lower }}",
-        "num_allocations": {{ .Values.ingest.replicas }},
-        "num_threads": 2
-      }
-    }'
-
-
-{{- $step = add $step 1 }}
-STEP {{ $step }} -- Create an index with semantic_text mapping
--------------------------------------------------------------
-  Adjust field names to match your document schema. The body field uses
-  semantic_text -- ES automatically chunks and embeds it on every write.
-
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    -X PUT "$ES_URL/knowledge-base" \
-    -H "Content-Type: application/json" -d '
-    {
-      "mappings": {
-        "properties": {
-          "title":      { "type": "text" },
-          "body":       { "type": "semantic_text",
-                          "inference_id": "{{ .Values.ml.modelId | replace "/" "-" | lower }}" },
-          "source_url": { "type": "keyword" },
-          "created_at": { "type": "date" }
-        }
-      }
-    }'
-
-
-{{- $step = add $step 1 }}
-STEP {{ $step }} -- Smoke test
-------------------------------
-  Index a document (ES chunks and embeds the body field automatically):
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    -X POST "$ES_URL/knowledge-base/_doc" \
-    -H "Content-Type: application/json" -d '
-    {
-      "title": "Smoke test document",
-      "body": "Elasticsearch semantic_text automatically chunks and embeds this text using the deployed model.",
-      "source_url": "https://example.com/test",
-      "created_at": "{{ now | date "2006-01-02" }}"
-    }'
-
-  Wait ~5 seconds for the embedding to complete, then search:
-  curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
-    -X POST "$ES_URL/knowledge-base/_search?pretty" \
-    -H "Content-Type: application/json" -d '
-    {
-      "query": {
-        "semantic": {
-          "field": "body",
-          "query": "how does semantic search work?"
-        }
-      }
-    }'
-
-  A hit with a non-zero score confirms the full pipeline is working.
-
-{{ else -}}
-{{- $step = add $step 1 }}
-STEP {{ $step }} -- Cluster is ready (ingest.mlEnabled=false)
--------------------------------------------------------------
+STEP {{ $step }} -- Cluster is ready
+-------------------------------------
   Verify nodes:
   curl -sf{{- if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{- end }}{{ $curlAuth }} \
     "$ES_URL/_cat/nodes?v"
@@ -359,9 +264,9 @@ STEP {{ $step }} -- Cluster is ready (ingest.mlEnabled=false)
 {{- $step = add $step 1 }}
 STEP {{ $step }} -- BYO vector: create a dense_vector index (external embedding service)
 -----------------------------------------------------------------------------------------
-  Use this path when an enterprise embedding service pre-computes vectors and your
-  client sends text + vector together. ES stores both and handles kNN search.
-  No inference endpoint or ML model needed in this chart -- set ingest.mlEnabled=false.
+  Vectors arrive pre-computed from an external embedding service. ES stores
+  both the text and the vector, and handles kNN search.
+  No inference endpoint or ML model is needed in this chart.
 
   1. Create an index with dense_vector mapping:
      Adjust dims to match your embedding model output (e.g. 384, 768, 1024).
@@ -426,5 +331,4 @@ STEP {{ $step }} -- BYO vector: create a dense_vector index (external embedding 
       }
     }'
 
-{{ end -}}
 ================================================================

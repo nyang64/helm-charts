@@ -99,21 +99,21 @@ data:
   storage:
     size: "1Ti"           # 1 TiB per pod (~1.1 TB); covers 750 GB with headroom
 
-# Ingest -- 1 pod; BYO vector flow (client supplies pre-computed vectors, no on-cluster ML).
+# Ingest -- 1 pod; pre-process documents before indexing (pipeline transformations, enrichment).
+# Vectors arrive pre-computed from an external embedding service.
 ingest:
   replicas: 1
   heapSize: "512m"
-  mlEnabled: false
   antiAffinity: "disabled"
   resources:
     requests:
       cpu: "1000m"
-      memory: "4Gi"      # can be reduced to 1Gi (heap*2) now that ML model weights are not loaded
+      memory: "1Gi"
     limits:
       cpu: "2000m"
-      memory: "4Gi"
+      memory: "1Gi"
 
-# Generous startup window -- sandbox clusters are slow to form, and ML model load adds time.
+# Generous startup window -- sandbox clusters are slow to form.
 probes:
   liveness:
     initialDelaySeconds: 120
