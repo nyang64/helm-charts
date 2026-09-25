@@ -121,6 +121,67 @@ tests:
       - failedTemplate:
           errorMessage: "Invalid configuration: elasticPassword.password starts with 'changeme'. Set a strong unique password or reference a pre-created secret via elasticPassword.existingSecret."
 
+  # ── kibana requires security ──────────────────────────────────────────────
+
+  - it: "fails when kibana enabled and security disabled"
+    template: templates/validation.yaml
+    set:
+      security.enabled: false
+      tls.enabled: false
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: kibana.enabled=true requires security.enabled=true. Kibana 9.x authenticates via ES service account tokens and xpack.security -- it cannot connect to an ES cluster with security disabled."
+
+  # ── multi-replica / rolling-update requires encryption keys ───────────────
+
+  - it: "fails when kibana.replicas > 1 without encryptionKeys"
+    template: templates/validation.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+      kibana.replicas: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: kibana.replicas > 1 requires kibana.encryptionKeys.existingSecret. Without shared encryption keys, each pod generates its own -- sessions and encrypted saved objects will fail across pod boundaries. Create a secret with keys: security, savedObjects, reporting."
+
+  - it: "fails when kibana.updateStrategy=RollingUpdate without encryptionKeys"
+    template: templates/validation.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+      kibana.updateStrategy: RollingUpdate
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: kibana.updateStrategy=RollingUpdate requires kibana.encryptionKeys.existingSecret. During a rolling rollout two pods overlap; without shared keys their session and reporting stores are incompatible. Create a secret with keys: security, savedObjects, reporting."
+
+  # ── removed setting guards ────────────────────────────────────────────────
+
+  - it: "fails when deprecated 'ml' block is present"
+    template: templates/validation.yaml
+    set:
+      ml.installJob: "true"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: the 'ml' block is no longer supported. ML role support and the model-loader Job were removed in v0.5.0. Remove the 'ml' key from your values file."
+
+  - it: "fails when deprecated 'ingest' block is present"
+    template: templates/validation.yaml
+    set:
+      ingest.replicas: 3
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: the 'ingest' block is no longer supported. The dedicated ingest StatefulSet was removed in v0.6.0; ingest pipelines now run on data nodes (data+ingest roles). Remove the 'ingest' key from your values file."
+
+  - it: "fails when deprecated pdb.ingest is present"
+    template: templates/validation.yaml
+    set:
+      pdb.ingest.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: pdb.ingest is no longer supported. The ingest StatefulSet was removed in v0.6.0. Remove 'pdb.ingest' from your values file."
+
   # ── clean base values pass validation ─────────────────────────────────────
 
   - it: "no validation error with valid base values"

@@ -128,6 +128,50 @@ tests:
       - hasDocuments:
           count: 0
 
+  # ── ES NetworkPolicy excludes Kibana ──────────────────────────────────────
+
+  - it: "ES NetworkPolicy podSelector excludes Kibana via NotIn matchExpression"
+    template: templates/networkpolicy.yaml
+    asserts:
+      - contains:
+          path: spec.podSelector.matchExpressions
+          content:
+            key: role
+            operator: NotIn
+            values: [kibana]
+
+  - it: "ES NetworkPolicy S3 egress uses port 443 for https"
+    template: templates/networkpolicy.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+      snapshot.repository.s3.protocol: "https"
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - port: 443
+                protocol: TCP
+
+  - it: "ES NetworkPolicy S3 egress uses port 80 for http"
+    template: templates/networkpolicy.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.internal"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+      snapshot.repository.s3.protocol: "http"
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - port: 80
+                protocol: TCP
+
   # ── client service: no ingest suffix ──────────────────────────────────────
 
   - it: "client service name has no -ingest suffix"

@@ -2,7 +2,7 @@ apiVersion: v2
 name: es-poc-cluster
 description: Elasticsearch cluster with master and data nodes (data+ingest roles) -- secured with TLS, xpack.security, and API key authentication
 type: application
-version: 0.6.0
+version: 0.7.0
 appVersion: "9.4.5"
 annotations:
   artifacthub.io/prereqs: |

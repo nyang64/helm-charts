@@ -38,7 +38,8 @@ spec:
         sidecar.istio.io/inject: "true"
         {{- end }}
     spec:
-      automountServiceAccountToken: false
+      serviceAccountName: {{ include "es-poc-cluster.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       terminationGracePeriodSeconds: 30
       securityContext:
         fsGroup: 1000
@@ -97,15 +98,14 @@ spec:
             failureThreshold: 30
             timeoutSeconds: 10
           livenessProbe:
-            # /api/status returns 503 when ES is down, which would kill a healthy
-            # Kibana process during ES outages. Use the root path which returns 302
-            # (redirect to login) regardless of ES availability -- process-local check.
-            httpGet:
-              path: /
+            # tcpSocket is genuinely process-local: checks only that port 5601 is open.
+            # httpGet (even GET /) can return 503 when ES is unavailable in Kibana 9.x,
+            # causing unnecessary Kibana restarts during ES outages.
+            tcpSocket:
               port: 5601
             initialDelaySeconds: 10
             periodSeconds: 30
-            timeoutSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
             httpGet:

@@ -202,12 +202,13 @@ tests:
           path: spec.strategy.type
           value: Recreate
 
-  - it: "Kibana Deployment uses RollingUpdate when explicitly configured"
+  - it: "Kibana Deployment uses RollingUpdate when explicitly configured (with encryption keys)"
     template: templates/kibana-deployment.yaml
     set:
       kibana.enabled: true
       kibana.serviceAccountToken.existingSecret: "kibana-token"
       kibana.updateStrategy: RollingUpdate
+      kibana.encryptionKeys.existingSecret: "kibana-enc-keys"
     asserts:
       - equal:
           path: spec.strategy.type
@@ -241,6 +242,33 @@ tests:
           content:
             name: tls-certs
           any: true
+
+  # ── liveness probe: process-local tcpSocket ───────────────────────────────
+
+  - it: "Kibana liveness probe uses tcpSocket (process-local, not httpGet)"
+    template: templates/kibana-deployment.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: 5601
+      - notEqual:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: null
+
+  # ── serviceAccountName ────────────────────────────────────────────────────
+
+  - it: "Kibana pod spec sets serviceAccountName"
+    template: templates/kibana-deployment.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: es-test
 
   # ── kibana.yml TLS settings ────────────────────────────────────────────────
 

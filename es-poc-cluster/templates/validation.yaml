@@ -36,6 +36,18 @@ not at Elasticsearch startup time inside the cluster.
 {{- fail "Invalid configuration: ad.enabled and jwt.enabled are no longer supported by this chart. AD and JWT realm support was removed in v0.4.0. Remove these keys from your values file. Use API keys for application authentication." }}
 {{- end }}
 
+{{- if hasKey .Values "ml" }}
+{{- fail "Invalid configuration: the 'ml' block is no longer supported. ML role support and the model-loader Job were removed in v0.5.0. Remove the 'ml' key from your values file." }}
+{{- end }}
+
+{{- if hasKey .Values "ingest" }}
+{{- fail "Invalid configuration: the 'ingest' block is no longer supported. The dedicated ingest StatefulSet was removed in v0.6.0; ingest pipelines now run on data nodes (data+ingest roles). Remove the 'ingest' key from your values file." }}
+{{- end }}
+
+{{- if and (hasKey .Values "pdb") (hasKey .Values.pdb "ingest") }}
+{{- fail "Invalid configuration: pdb.ingest is no longer supported. The ingest StatefulSet was removed in v0.6.0. Remove 'pdb.ingest' from your values file." }}
+{{- end }}
+
 {{- if .Values.snapshot.enabled }}
 {{- if not .Values.snapshot.repository.s3.bucket }}
 {{- fail "Invalid configuration: snapshot.enabled=true requires snapshot.repository.s3.bucket." }}
@@ -52,8 +64,17 @@ not at Elasticsearch startup time inside the cluster.
 {{- end }}
 
 {{- if .Values.kibana.enabled }}
+{{- if not .Values.security.enabled }}
+{{- fail "Invalid configuration: kibana.enabled=true requires security.enabled=true. Kibana 9.x authenticates via ES service account tokens and xpack.security -- it cannot connect to an ES cluster with security disabled." }}
+{{- end }}
 {{- if not .Values.kibana.serviceAccountToken.existingSecret }}
 {{- fail "Invalid configuration: kibana.enabled=true requires kibana.serviceAccountToken.existingSecret. Create a K8s Secret with key 'token' containing the ES service account token before installing." }}
+{{- end }}
+{{- if and (gt (int .Values.kibana.replicas) 1) (not .Values.kibana.encryptionKeys.existingSecret) }}
+{{- fail "Invalid configuration: kibana.replicas > 1 requires kibana.encryptionKeys.existingSecret. Without shared encryption keys, each pod generates its own -- sessions and encrypted saved objects will fail across pod boundaries. Create a secret with keys: security, savedObjects, reporting." }}
+{{- end }}
+{{- if and (eq (.Values.kibana.updateStrategy | default "Recreate") "RollingUpdate") (not .Values.kibana.encryptionKeys.existingSecret) }}
+{{- fail "Invalid configuration: kibana.updateStrategy=RollingUpdate requires kibana.encryptionKeys.existingSecret. During a rolling rollout two pods overlap; without shared keys their session and reporting stores are incompatible. Create a secret with keys: security, savedObjects, reporting." }}
 {{- end }}
 {{- end }}
 
@@ -61,7 +82,7 @@ not at Elasticsearch startup time inside the cluster.
      During 'helm template' (no cluster access), lookup returns {} and checks are skipped. */}}
 {{- $clusterReachable := lookup "v1" "Namespace" "" .Release.Namespace }}
 {{- if $clusterReachable }}
-  {{- if .Values.elasticPassword.existingSecret }}
+  {{- if and .Values.security.enabled .Values.elasticPassword.existingSecret }}
     {{- $s := lookup "v1" "Secret" .Release.Namespace .Values.elasticPassword.existingSecret }}
     {{- if not (hasKey $s "metadata") }}
     {{- fail (printf "Pre-install check: Secret '%s' not found in namespace '%s'. Create it before installing (key: ELASTIC_PASSWORD)." .Values.elasticPassword.existingSecret .Release.Namespace) }}
@@ -69,7 +90,7 @@ not at Elasticsearch startup time inside the cluster.
     {{- fail (printf "Pre-install check: Secret '%s' exists but is missing required key 'ELASTIC_PASSWORD'." .Values.elasticPassword.existingSecret) }}
     {{- end }}
   {{- end }}
-  {{- if .Values.kibana.enabled }}
+  {{- if and .Values.kibana.enabled .Values.security.enabled }}
     {{- $ks := lookup "v1" "Secret" .Release.Namespace .Values.kibana.serviceAccountToken.existingSecret }}
     {{- if not (hasKey $ks "metadata") }}
     {{- fail (printf "Pre-install check: Kibana token Secret '%s' not found in namespace '%s'. Create it before enabling Kibana (key: token)." .Values.kibana.serviceAccountToken.existingSecret .Release.Namespace) }}

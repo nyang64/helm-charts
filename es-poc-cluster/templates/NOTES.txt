@@ -331,3 +331,25 @@ STEP {{ $step }} -- BYO vector: create a dense_vector index (external embedding 
     }'
 
 ================================================================
+UPGRADE NOTES
+================================================================
+
+BREAKING CHANGE (v0.6.0): Client Service renamed from <fullname>-ingest to <fullname>
+---------------------------------------------------------------------------------------
+  The dedicated ingest StatefulSet was removed in v0.6.0. Ingest pipelines now
+  run on data nodes (data+ingest roles). The client-facing Service was renamed:
+
+    Before: {{ include "es-poc-cluster.fullname" . }}-ingest.{{ .Release.Namespace }}.svc:9200
+    After:  {{ include "es-poc-cluster.fullname" . }}.{{ .Release.Namespace }}.svc:9200
+
+  ACTION REQUIRED for any application or independently-managed Kibana that
+  previously connected to <release>-ingest (or <fullname>-ingest):
+
+    1. Update the ES endpoint in every application's configuration.
+    2. If you manage a separate Kibana, update ELASTICSEARCH_HOSTS.
+    3. Rotate TLS trust if your client pins the old SAN -- the certificate
+       no longer includes <fullname>-ingest; it now includes <fullname> and
+       <fullname>.{{ .Release.Namespace }}.svc.cluster.local.
+    4. After all consumers are updated, the upgrade to v0.6.0+ is safe.
+
+================================================================

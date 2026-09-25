@@ -9,6 +9,10 @@ spec:
   podSelector:
     matchLabels:
       {{- include "es-poc-cluster.selectorLabels" . | nindent 6 }}
+    matchExpressions:
+      - key: role
+        operator: NotIn
+        values: [kibana]
   policyTypes:
     - Ingress
     - Egress
@@ -40,9 +44,9 @@ spec:
         - port: 53
           protocol: TCP
     {{- if and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") }}
-    # port 443 egress: on-prem S3 snapshot endpoint.
+    # S3 snapshot endpoint egress -- port matches configured protocol.
     - ports:
-        - port: 443
+        - port: {{ if eq .Values.snapshot.repository.s3.protocol "https" }}443{{ else }}80{{ end }}
           protocol: TCP
     {{- end }}
     {{- if .Values.istio.enabled }}

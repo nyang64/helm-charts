@@ -31,7 +31,7 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "es-poc-cluster.serviceAccountName" . }}
-      automountServiceAccountToken: false
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       terminationGracePeriodSeconds: 120
       securityContext:
         fsGroup: 1000
