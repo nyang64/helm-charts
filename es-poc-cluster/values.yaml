@@ -6,7 +6,7 @@ image:
   # tag: pin to an exact patch version in production. Mutable tags (e.g. "8.17") mean
   # `helm upgrade` may silently roll all pods to a newer ES version when nodes pull a fresh image,
   # potentially causing a rolling upgrade without operator awareness.
-  tag: "8.19.18"
+  tag: "9.4.5"
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -180,14 +180,19 @@ snapshot:
     s3:
       bucket: ""            # S3 bucket name -- must exist before repo registration
       basePath: "elasticsearch"   # key prefix within the bucket
-      # endpoint: S3-compatible host (no protocol prefix) for on-prem S3
+      # endpoint: bare S3-compatible hostname (no protocol prefix) for on-prem S3
       # (NetApp HPOS, StorageGRID, MinIO, etc.).
       # Example: "netapp-hpos.your-corp.internal"
+      # The chart prepends `protocol` to form the full URL required by ES 9.x:
+      #   s3.client.default.endpoint: "<protocol>://<endpoint>"
+      # (ES 9.x dropped the standalone s3.client.*.protocol setting.)
       endpoint: ""
-      # region: required in ES 8.19+ -- AWS SDK v2 no longer infers region from the endpoint.
-      # For on-prem S3 (NetApp HPOS), use any placeholder (e.g. "us-east-1" or "default").
+      # region: required by the AWS SDK v2 S3 client. For on-prem S3, use any
+      # placeholder (e.g. "us-east-1" or "default").
       region: "us-east-1"
       pathStyleAccess: true     # true for on-prem S3 path-style addressing
+      # protocol: prepended to endpoint to form the full S3 URL. "https" is strongly
+      # recommended for on-prem S3. "http" only for isolated dev/test environments.
       protocol: "https"
       # credentialsSecret: K8s secret with on-prem S3 access credentials.
       # Secret must have keys: access_key, secret_key.
@@ -242,7 +247,7 @@ kibana:
     #     -n <namespace>
     existingSecret: ""
   # updateStrategy: Recreate (default) terminates the old pod before starting the new one.
-  # Required for version upgrades -- Kibana 8.x does not support two versions running
+  # Required for version upgrades -- Kibana does not support two versions running
   # simultaneously. Use RollingUpdate only for same-version config-only rollouts where
   # brief pod overlap is safe (typically multi-replica deployments).
   updateStrategy: "Recreate"

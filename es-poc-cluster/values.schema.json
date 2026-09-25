@@ -105,7 +105,7 @@
               "properties": {
                 "bucket": { "type": "string" },
                 "basePath": { "type": "string" },
-                "endpoint": { "type": "string", "description": "On-prem S3 host (no protocol prefix), e.g. netapp-hpos.your-corp.internal" },
+                "endpoint": { "type": "string", "description": "On-prem S3 bare hostname (no protocol prefix). The chart prepends `protocol` to form the full URL required by ES 9.x. Example: netapp-hpos.your-corp.internal" },
                 "region": { "type": "string" },
                 "pathStyleAccess": { "type": "boolean" },
                 "protocol": { "type": "string", "enum": ["https", "http"] },

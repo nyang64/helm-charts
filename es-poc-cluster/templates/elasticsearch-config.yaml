@@ -35,13 +35,13 @@ data:
     {{- end }}
     {{- if and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") }}
     {{- if .Values.snapshot.repository.s3.endpoint }}
-    s3.client.default.endpoint: {{ .Values.snapshot.repository.s3.endpoint | quote }}
+    {{- /* ES 9.x: endpoint must be a full URL; standalone s3.client.*.protocol is a no-op. */}}
+    s3.client.default.endpoint: {{ printf "%s://%s" .Values.snapshot.repository.s3.protocol .Values.snapshot.repository.s3.endpoint | quote }}
     {{- end }}
     {{- if .Values.snapshot.repository.s3.region }}
     s3.client.default.region: {{ .Values.snapshot.repository.s3.region | quote }}
     {{- end }}
     s3.client.default.path_style_access: {{ .Values.snapshot.repository.s3.pathStyleAccess }}
-    s3.client.default.protocol: {{ .Values.snapshot.repository.s3.protocol | quote }}
     {{- end }}
     {{- if .Values.esConfig }}
     {{ .Values.esConfig | toYaml | trim | nindent 4 }}

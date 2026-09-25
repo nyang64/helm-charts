@@ -46,6 +46,9 @@ not at Elasticsearch startup time inside the cluster.
 {{- if not .Values.snapshot.repository.s3.endpoint }}
 {{- fail "Invalid configuration: snapshot.enabled=true requires snapshot.repository.s3.endpoint (e.g. 'netapp-hpos.your-corp.internal'). On-prem S3 does not use AWS endpoint discovery." }}
 {{- end }}
+{{- if or (hasPrefix "http://" .Values.snapshot.repository.s3.endpoint) (hasPrefix "https://" .Values.snapshot.repository.s3.endpoint) }}
+{{- fail "Invalid configuration: snapshot.repository.s3.endpoint must be a bare hostname (no protocol prefix). The chart prepends snapshot.repository.s3.protocol to form the full URL required by ES 9.x. Example: 'netapp-hpos.your-corp.internal'" }}
+{{- end }}
 {{- end }}
 
 {{- if .Values.kibana.enabled }}

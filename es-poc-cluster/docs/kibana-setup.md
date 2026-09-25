@@ -352,7 +352,7 @@ kubectl create secret generic kibana-encryption-keys \
 
 ```yaml
 # kibana-values.yaml
-imageTag: "<must match ES major.minor, e.g. 8.19.18>"
+imageTag: "<must match ES major.minor, e.g. 9.4.5>"
 
 elasticsearchHosts: "<ES_EXTERNAL_URL>"   # from Step B-1
 
