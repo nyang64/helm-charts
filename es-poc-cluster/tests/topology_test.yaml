@@ -1,0 +1,158 @@
+suite: "topology -- node roles, StatefulSet specs, PDB, client service"
+values:
+  - values/base.yaml
+
+tests:
+
+  # ── node.roles ──────────────────────────────────────────────────────────────
+
+  - it: "master pods carry role 'master'"
+    template: templates/master-statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: node.roles
+            value: "master"
+
+  - it: "data pods carry roles 'data,ingest' (folded ingest tier)"
+    template: templates/data-statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: node.roles
+            value: "data,ingest"
+
+  # ── podManagementPolicy ────────────────────────────────────────────────────
+
+  - it: "master StatefulSet uses Parallel podManagementPolicy"
+    template: templates/master-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.podManagementPolicy
+          value: Parallel
+
+  - it: "data StatefulSet uses Parallel podManagementPolicy"
+    template: templates/data-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.podManagementPolicy
+          value: Parallel
+
+  # ── client service ─────────────────────────────────────────────────────────
+
+  - it: "client service is named <fullname> (no role suffix)"
+    template: templates/client-service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: es-test
+
+  - it: "client service selector targets role=data pods"
+    template: templates/client-service.yaml
+    asserts:
+      - equal:
+          path: spec.selector.role
+          value: data
+
+  - it: "client service exposes port 9200"
+    template: templates/client-service.yaml
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 9200
+      - equal:
+          path: spec.ports[0].targetPort
+          value: 9200
+
+  # ── headless services ──────────────────────────────────────────────────────
+
+  - it: "master headless service exists for StatefulSet DNS"
+    template: templates/master-service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.clusterIP
+          value: None
+      - equal:
+          path: metadata.name
+          value: es-test-master-headless
+
+  - it: "data headless service exists for StatefulSet DNS"
+    template: templates/data-service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.clusterIP
+          value: None
+      - equal:
+          path: metadata.name
+          value: es-test-data-headless
+
+  # ── PodDisruptionBudgets ───────────────────────────────────────────────────
+
+  - it: "renders exactly two PDBs (master + data -- no ingest PDB)"
+    template: templates/pdb.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: "master PDB is named <fullname>-master"
+    template: templates/pdb.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: metadata.name
+          value: es-test-master
+
+  - it: "data PDB is named <fullname>-data"
+    template: templates/pdb.yaml
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.name
+          value: es-test-data
+
+  - it: "data PDB minAvailable is capped to replicas when set higher"
+    template: templates/pdb.yaml
+    set:
+      pdb.data.minAvailable: 999
+      data.replicas: 3
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 3
+
+  - it: "renders only data PDB when master PDB is disabled"
+    template: templates/pdb.yaml
+    set:
+      pdb.master.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  # ── StatefulSet replica counts ─────────────────────────────────────────────
+
+  - it: "master StatefulSet replica count matches values"
+    template: templates/master-statefulset.yaml
+    set:
+      master.replicas: 1
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: "data StatefulSet replica count matches values"
+    template: templates/data-statefulset.yaml
+    set:
+      data.replicas: 6
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 6

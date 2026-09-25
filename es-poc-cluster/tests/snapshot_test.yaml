@@ -1,0 +1,172 @@
+suite: "snapshot -- S3 endpoint URL (ES 9.x), keystore init container"
+values:
+  - values/base.yaml
+
+# Shared snapshot overrides used by most tests in this suite.
+# Individual tests can add further `set:` overrides.
+# Note: snapshot.enabled=true also requires bucket, endpoint, credentialsSecret
+#       per validation.yaml -- tests here set all three.
+
+tests:
+
+  # ── S3 endpoint URL format (ES 9.x breaking change) ───────────────────────
+
+  - it: "S3 endpoint is rendered as full URL with protocol prefix"
+    template: templates/elasticsearch-config.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+      snapshot.repository.s3.protocol: "https"
+    asserts:
+      - matchRegex:
+          path: 'data["elasticsearch.yml"]'
+          pattern: 's3\.client\.default\.endpoint: "https://minio\.example\.com"'
+
+  - it: "S3 endpoint uses http:// when protocol is http"
+    template: templates/elasticsearch-config.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.internal"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+      snapshot.repository.s3.protocol: "http"
+    asserts:
+      - matchRegex:
+          path: 'data["elasticsearch.yml"]'
+          pattern: 's3\.client\.default\.endpoint: "http://minio\.internal"'
+
+  - it: "standalone s3.client.default.protocol is NOT emitted (ES 9.x: no-op, removed)"
+    template: templates/elasticsearch-config.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+    asserts:
+      - notMatchRegex:
+          path: 'data["elasticsearch.yml"]'
+          pattern: "s3\\.client\\.default\\.protocol:"
+
+  - it: "S3 path_style_access is present in config"
+    template: templates/elasticsearch-config.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+      snapshot.repository.s3.pathStyleAccess: true
+    asserts:
+      - matchRegex:
+          path: 'data["elasticsearch.yml"]'
+          pattern: "s3\\.client\\.default\\.path_style_access: true"
+
+  - it: "no S3 config in elasticsearch.yml when snapshot is disabled"
+    template: templates/elasticsearch-config.yaml
+    asserts:
+      - notMatchRegex:
+          path: 'data["elasticsearch.yml"]'
+          pattern: "s3\\.client\\.default"
+
+  # ── keystore init container ────────────────────────────────────────────────
+
+  - it: "keystore init container is present when snapshot enabled with credentials"
+    template: templates/data-statefulset.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: keystore-init
+
+  - it: "keystore init container is absent when snapshot is disabled"
+    template: templates/data-statefulset.yaml
+    asserts:
+      - notEqual:
+          path: spec.template.spec.initContainers[0].name
+          value: keystore-init
+
+  - it: "keystore init container loads S3_ACCESS_KEY from credentials secret"
+    template: templates/data-statefulset.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: S3_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: s3-creds
+                key: access_key
+
+  - it: "keystore init container loads S3_SECRET_KEY from credentials secret"
+    template: templates/data-statefulset.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: S3_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: s3-creds
+                key: secret_key
+
+  - it: "keystore init loads bootstrap.password when security.enabled=true"
+    template: templates/data-statefulset.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: ELASTIC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: es-elastic-secret
+                key: ELASTIC_PASSWORD
+
+  - it: "keystore init skips bootstrap.password when security.enabled=false"
+    template: templates/data-statefulset.yaml
+    set:
+      security.enabled: false
+      tls.enabled: false
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+    asserts:
+      - notContains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: ELASTIC_PASSWORD
+          any: true
+
+  - it: "keystore emptyDir volume present when keystore init is active"
+    template: templates/data-statefulset.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: keystore
+            emptyDir: {}

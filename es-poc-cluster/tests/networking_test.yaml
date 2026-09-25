@@ -1,0 +1,145 @@
+suite: "networking -- NetworkPolicy egress, TLS certificate SANs, client service identity"
+values:
+  - values/base.yaml
+
+tests:
+
+  # ── NetworkPolicy presence ─────────────────────────────────────────────────
+
+  - it: "NetworkPolicy is rendered when networkPolicy.enabled=true"
+    template: templates/networkpolicy.yaml
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+
+  - it: "no NetworkPolicy when networkPolicy.enabled=false"
+    template: templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── NetworkPolicy egress: port 443 for S3 snapshots ───────────────────────
+
+  - it: "NetworkPolicy has port-443 egress rule when snapshot enabled"
+    template: templates/networkpolicy.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - port: 443
+                protocol: TCP
+
+  - it: "NetworkPolicy has no port-443 egress rule when snapshot disabled"
+    template: templates/networkpolicy.yaml
+    asserts:
+      - notContains:
+          path: spec.egress
+          content:
+            ports:
+              - port: 443
+                protocol: TCP
+
+  # ── NetworkPolicy egress: istio control-plane ports ───────────────────────
+
+  - it: "NetworkPolicy has Istio control-plane egress ports when istio enabled"
+    template: templates/networkpolicy.yaml
+    set:
+      istio.enabled: true
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            ports:
+              - port: 15012
+                protocol: TCP
+              - port: 15010
+                protocol: TCP
+
+  - it: "NetworkPolicy has no Istio control-plane egress ports when istio disabled"
+    template: templates/networkpolicy.yaml
+    asserts:
+      - notContains:
+          path: spec.egress
+          content:
+            ports:
+              - port: 15012
+                protocol: TCP
+
+  # ── TLS certificate SANs ───────────────────────────────────────────────────
+
+  - it: "TLS certificate is rendered when tls.enabled=true"
+    template: templates/tls-certificate.yaml
+    asserts:
+      - isKind:
+          of: Certificate
+
+  - it: "TLS certificate dnsNames contains <fullname> (bare client service)"
+    template: templates/tls-certificate.yaml
+    asserts:
+      - contains:
+          path: spec.dnsNames
+          content: es-test
+
+  - it: "TLS certificate dnsNames contains <fullname> FQDN"
+    template: templates/tls-certificate.yaml
+    release:
+      namespace: test-ns
+    asserts:
+      - contains:
+          path: spec.dnsNames
+          content: es-test.test-ns.svc.cluster.local
+
+  - it: "TLS certificate dnsNames contains master-headless name"
+    template: templates/tls-certificate.yaml
+    asserts:
+      - contains:
+          path: spec.dnsNames
+          content: es-test-master-headless
+
+  - it: "TLS certificate dnsNames contains data-headless name"
+    template: templates/tls-certificate.yaml
+    asserts:
+      - contains:
+          path: spec.dnsNames
+          content: es-test-data-headless
+
+  - it: "TLS certificate dnsNames does NOT contain <fullname>-ingest (ingest tier removed)"
+    template: templates/tls-certificate.yaml
+    asserts:
+      - notContains:
+          path: spec.dnsNames
+          content: es-test-ingest
+
+  - it: "no TLS certificate when tls.enabled=false"
+    template: templates/tls-certificate.yaml
+    set:
+      security.enabled: false
+      tls.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── client service: no ingest suffix ──────────────────────────────────────
+
+  - it: "client service name has no -ingest suffix"
+    template: templates/client-service.yaml
+    asserts:
+      - notMatchRegex:
+          path: metadata.name
+          pattern: "-ingest$"
+
+  - it: "client service has no clusterIP:None (not headless)"
+    template: templates/client-service.yaml
+    asserts:
+      - notEqual:
+          path: spec.clusterIP
+          value: None

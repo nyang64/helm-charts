@@ -1,0 +1,267 @@
+suite: "kibana -- ES-Kibana integration: deployment, ES URL, env vars, config"
+values:
+  - values/base.yaml
+
+tests:
+
+  # ── kibana.enabled=false gate ──────────────────────────────────────────────
+
+  - it: "no Kibana Deployment when kibana.enabled=false"
+    template: templates/kibana-deployment.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "no Kibana Service when kibana.enabled=false"
+    template: templates/kibana-service.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "no Kibana ConfigMap when kibana.enabled=false"
+    template: templates/kibana-configmap.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "no Kibana NetworkPolicy when kibana.enabled=false"
+    template: templates/kibana-networkpolicy.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── kibana.enabled=true: resources rendered ────────────────────────────────
+
+  - it: "Kibana Deployment is rendered when enabled"
+    template: templates/kibana-deployment.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: es-test-kibana
+
+  - it: "Kibana Service is rendered when enabled"
+    template: templates/kibana-service.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: es-test-kibana
+
+  # ── ELASTICSEARCH_HOSTS: correct ES service URL ────────────────────────────
+
+  - it: "ELASTICSEARCH_HOSTS uses https and ES client service when tls=true, istio=false"
+    template: templates/kibana-deployment.yaml
+    release:
+      namespace: test-ns
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ELASTICSEARCH_HOSTS
+            value: "https://es-test.test-ns.svc:9200"
+
+  - it: "ELASTICSEARCH_HOSTS uses http when istio.enabled=true (Envoy handles mTLS)"
+    template: templates/kibana-deployment.yaml
+    release:
+      namespace: test-ns
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+      istio.enabled: true
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ELASTICSEARCH_HOSTS
+            value: "http://es-test.test-ns.svc:9200"
+
+  - it: "ELASTICSEARCH_HOSTS points to <fullname> (not <fullname>-ingest)"
+    template: templates/kibana-deployment.yaml
+    release:
+      namespace: test-ns
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ELASTICSEARCH_HOSTS
+            value: "https://es-test-ingest.test-ns.svc:9200"
+
+  # ── service account token ──────────────────────────────────────────────────
+
+  - it: "ELASTICSEARCH_SERVICEACCOUNTTOKEN env is set from the token secret"
+    template: templates/kibana-deployment.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ELASTICSEARCH_SERVICEACCOUNTTOKEN
+            valueFrom:
+              secretKeyRef:
+                name: kibana-token
+                key: token
+
+  # ── encryption keys ────────────────────────────────────────────────────────
+
+  - it: "encryption key env vars are present when encryptionKeys.existingSecret is set"
+    template: templates/kibana-deployment.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+      kibana.encryptionKeys.existingSecret: "kibana-enc-keys"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: XPACK_SECURITY_ENCRYPTIONKEY
+            valueFrom:
+              secretKeyRef:
+                name: kibana-enc-keys
+                key: security
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
+            valueFrom:
+              secretKeyRef:
+                name: kibana-enc-keys
+                key: savedObjects
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: XPACK_REPORTING_ENCRYPTIONKEY
+            valueFrom:
+              secretKeyRef:
+                name: kibana-enc-keys
+                key: reporting
+
+  - it: "encryption key env vars are absent when encryptionKeys.existingSecret is empty"
+    template: templates/kibana-deployment.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: XPACK_SECURITY_ENCRYPTIONKEY
+          any: true
+
+  # ── image ──────────────────────────────────────────────────────────────────
+
+  - it: "Kibana image defaults to the ES image tag when kibana.image.tag is empty"
+    template: templates/kibana-deployment.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+      image.tag: "9.4.5"
+      kibana.image.tag: ""
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ":9\\.4\\.5$"
+
+  - it: "Kibana image uses kibana.image.tag when explicitly set"
+    template: templates/kibana-deployment.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+      kibana.image.tag: "9.4.5"
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ":9\\.4\\.5$"
+
+  # ── update strategy ────────────────────────────────────────────────────────
+
+  - it: "Kibana Deployment uses Recreate strategy by default"
+    template: templates/kibana-deployment.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+
+  - it: "Kibana Deployment uses RollingUpdate when explicitly configured"
+    template: templates/kibana-deployment.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+      kibana.updateStrategy: RollingUpdate
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: RollingUpdate
+
+  # ── TLS CA cert mount ──────────────────────────────────────────────────────
+
+  - it: "Kibana mounts ES CA cert when tls=true and istio disabled"
+    template: templates/kibana-deployment.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls-certs
+            mountPath: /usr/share/kibana/config/certs
+            readOnly: true
+
+  - it: "Kibana does not mount ES CA cert when istio.enabled=true (mTLS via Envoy)"
+    template: templates/kibana-deployment.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+      istio.enabled: true
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls-certs
+          any: true
+
+  # ── kibana.yml TLS settings ────────────────────────────────────────────────
+
+  - it: "kibana.yml has elasticsearch SSL config when tls=true and istio disabled"
+    template: templates/kibana-configmap.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - matchRegex:
+          path: 'data["kibana.yml"]'
+          pattern: "elasticsearch\\.ssl\\.certificateAuthorities"
+
+  - it: "kibana.yml has no elasticsearch SSL config when istio.enabled=true"
+    template: templates/kibana-configmap.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+      istio.enabled: true
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+    asserts:
+      - notMatchRegex:
+          path: 'data["kibana.yml"]'
+          pattern: "elasticsearch\\.ssl\\.certificateAuthorities"

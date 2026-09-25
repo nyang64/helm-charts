@@ -1,0 +1,106 @@
+# Shared base values for helm-unittest.
+# Provides a minimal valid configuration that passes all template validations.
+# Individual tests override specific keys with `set:`.
+fullnameOverride: "es-test"
+
+elasticPassword:
+  existingSecret: "es-elastic-secret"
+
+security:
+  enabled: true
+
+tls:
+  enabled: true
+  secretName: "es-test-tls"
+  issuerName: "es-test-issuer"
+
+sysctl:
+  enabled: false          # keep init containers deterministic: no sysctl (index 0 = keystore-init)
+
+networkPolicy:
+  enabled: true
+
+master:
+  replicas: 3
+  heapSize: "512m"
+  antiAffinity: "preferred"
+  bootstrapped: false
+  storage:
+    size: "10Gi"
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+data:
+  replicas: 3
+  heapSize: "1g"
+  antiAffinity: "preferred"
+  storage:
+    size: "100Gi"
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+
+snapshot:
+  enabled: false
+  repository:
+    name: "backup"
+    type: "s3"
+    s3:
+      bucket: ""
+      basePath: "elasticsearch"
+      endpoint: ""
+      region: "us-east-1"
+      pathStyleAccess: true
+      protocol: "https"
+      credentialsSecret: ""
+
+kibana:
+  enabled: false
+  replicas: 1
+  image:
+    repository: docker.elastic.co/kibana/kibana
+    tag: ""
+    pullPolicy: IfNotPresent
+  serviceAccountToken:
+    existingSecret: ""
+  encryptionKeys:
+    existingSecret: ""
+  updateStrategy: "Recreate"
+  antiAffinity: "preferred"
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+pdb:
+  master:
+    enabled: true
+    minAvailable: 2
+  data:
+    enabled: true
+    minAvailable: 1
+
+istio:
+  enabled: false
+  allowedNamespaces: []
+  gateway:
+    selector:
+      istio: ingressgateway
+    hostname: ""
+    tls:
+      mode: SIMPLE
+      credentialName: ""

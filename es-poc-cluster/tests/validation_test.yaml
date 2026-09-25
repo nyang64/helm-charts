@@ -1,0 +1,130 @@
+suite: "validation -- fail guards for incompatible value combinations"
+values:
+  - values/base.yaml
+
+tests:
+
+  # ── security+tls mutual dependency ────────────────────────────────────────
+
+  - it: "fails when security=true and tls=false"
+    template: templates/validation.yaml
+    set:
+      tls.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: security.enabled=true requires tls.enabled=true. ES transport TLS (port 9300) needs cert-manager certificates regardless of istio.enabled -- Istio only handles HTTP TLS (port 9200). Set security.enabled=false only for isolated dev/test."
+
+  - it: "fails when tls=true and security=false"
+    template: templates/validation.yaml
+    set:
+      security.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: tls.enabled=true requires security.enabled=true. ES does not configure any TLS when xpack.security is off, so httpScheme would resolve to https against a plain-HTTP listener. Set tls.enabled=false for security-off deployments."
+
+  - it: "passes when both security and tls are disabled"
+    template: templates/validation.yaml
+    set:
+      security.enabled: false
+      tls.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # ── snapshot endpoint guard (ES 9.x: no protocol prefix) ──────────────────
+
+  - it: "fails when snapshot endpoint has https:// prefix"
+    template: templates/validation.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "https://minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: snapshot.repository.s3.endpoint must be a bare hostname (no protocol prefix). The chart prepends snapshot.repository.s3.protocol to form the full URL required by ES 9.x. Example: 'netapp-hpos.your-corp.internal'"
+
+  - it: "fails when snapshot endpoint has http:// prefix"
+    template: templates/validation.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "http://minio.internal"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: snapshot.repository.s3.endpoint must be a bare hostname (no protocol prefix). The chart prepends snapshot.repository.s3.protocol to form the full URL required by ES 9.x. Example: 'netapp-hpos.your-corp.internal'"
+
+  # ── snapshot enabled: required fields ────────────────────────────────────
+
+  - it: "fails when snapshot enabled without bucket"
+    template: templates/validation.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: ""
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: snapshot.enabled=true requires snapshot.repository.s3.bucket."
+
+  - it: "fails when snapshot enabled without endpoint"
+    template: templates/validation.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: ""
+      snapshot.repository.s3.credentialsSecret: "s3-creds"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: snapshot.enabled=true requires snapshot.repository.s3.endpoint (e.g. 'netapp-hpos.your-corp.internal'). On-prem S3 does not use AWS endpoint discovery."
+
+  - it: "fails when snapshot enabled without credentialsSecret"
+    template: templates/validation.yaml
+    set:
+      snapshot.enabled: true
+      snapshot.repository.s3.bucket: "es-snapshots"
+      snapshot.repository.s3.endpoint: "minio.example.com"
+      snapshot.repository.s3.credentialsSecret: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: snapshot.enabled=true requires snapshot.repository.s3.credentialsSecret. On-prem S3 (NetApp HPOS) uses static access/secret key credentials stored in a K8s Secret."
+
+  # ── kibana: token secret required ─────────────────────────────────────────
+
+  - it: "fails when kibana enabled without serviceAccountToken secret"
+    template: templates/validation.yaml
+    set:
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: kibana.enabled=true requires kibana.serviceAccountToken.existingSecret. Create a K8s Secret with key 'token' containing the ES service account token before installing."
+
+  # ── elasticPassword validation ────────────────────────────────────────────
+
+  - it: "fails when security enabled and both password and existingSecret are empty"
+    template: templates/validation.yaml
+    set:
+      elasticPassword.existingSecret: ""
+      elasticPassword.password: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: elasticPassword.password is empty. ES only sets the bootstrap password when the env var is non-empty. Set a strong password or use elasticPassword.existingSecret."
+
+  - it: "fails when password starts with 'changeme'"
+    template: templates/validation.yaml
+    set:
+      elasticPassword.existingSecret: ""
+      elasticPassword.password: "changeme123"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Invalid configuration: elasticPassword.password starts with 'changeme'. Set a strong unique password or reference a pre-created secret via elasticPassword.existingSecret."
+
+  # ── clean base values pass validation ─────────────────────────────────────
+
+  - it: "no validation error with valid base values"
+    template: templates/validation.yaml
+    asserts:
+      - hasDocuments:
+          count: 0

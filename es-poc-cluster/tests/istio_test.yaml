@@ -1,0 +1,136 @@
+suite: "istio -- AuthorizationPolicy, VirtualService, PeerAuthentication"
+values:
+  - values/base.yaml
+
+tests:
+
+  # ── AuthorizationPolicy: gating on istio.enabled ──────────────────────────
+
+  - it: "no AuthorizationPolicy when istio.enabled=false"
+    template: templates/istio-authorization-policy.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "one ES AuthorizationPolicy when istio enabled (no Kibana)"
+    template: templates/istio-authorization-policy.yaml
+    set:
+      istio.enabled: true
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: "two AuthorizationPolicies when istio + kibana both enabled"
+    template: templates/istio-authorization-policy.yaml
+    set:
+      istio.enabled: true
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: "Kibana AuthorizationPolicy selector targets role=kibana pods"
+    template: templates/istio-authorization-policy.yaml
+    documentIndex: 1
+    set:
+      istio.enabled: true
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+      kibana.enabled: true
+      kibana.serviceAccountToken.existingSecret: "kibana-token"
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels.role
+          value: kibana
+
+  # ── VirtualService: gating and destination ────────────────────────────────
+
+  - it: "no VirtualService when istio.enabled=false"
+    template: templates/istio-virtual-service.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "no VirtualService when istio.enabled=true but hostname not set"
+    template: templates/istio-virtual-service.yaml
+    set:
+      istio.enabled: true
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "VirtualService rendered when istio enabled with hostname"
+    template: templates/istio-virtual-service.yaml
+    set:
+      istio.enabled: true
+      istio.gateway.hostname: "es.example.com"
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+    asserts:
+      - isKind:
+          of: VirtualService
+
+  - it: "VirtualService destination host is <fullname> (not <fullname>-ingest)"
+    template: templates/istio-virtual-service.yaml
+    set:
+      istio.enabled: true
+      istio.gateway.hostname: "es.example.com"
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+    asserts:
+      - equal:
+          path: spec.http[0].route[0].destination.host
+          value: es-test
+
+  - it: "VirtualService destination port is 9200"
+    template: templates/istio-virtual-service.yaml
+    set:
+      istio.enabled: true
+      istio.gateway.hostname: "es.example.com"
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+    asserts:
+      - equal:
+          path: spec.http[0].route[0].destination.port.number
+          value: 9200
+
+  # ── PeerAuthentication ────────────────────────────────────────────────────
+
+  - it: "no PeerAuthentication when istio.enabled=false"
+    template: templates/istio-peer-authentication.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: "PeerAuthentication rendered when istio.enabled=true"
+    template: templates/istio-peer-authentication.yaml
+    set:
+      istio.enabled: true
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+    asserts:
+      - isKind:
+          of: PeerAuthentication
+
+  # ── istio allowedNamespaces: extra AuthorizationPolicy rule ──────────────
+
+  - it: "AuthorizationPolicy has allowedNamespaces rule when set"
+    template: templates/istio-authorization-policy.yaml
+    set:
+      istio.enabled: true
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+      istio.allowedNamespaces:
+        - app-team-a
+        - app-team-b
+    asserts:
+      - contains:
+          path: spec.rules
+          content:
+            from:
+              - source:
+                  namespaces:
+                    - app-team-a
+                    - app-team-b
+            to:
+              - operation:
+                  ports:
+                    - "9200"

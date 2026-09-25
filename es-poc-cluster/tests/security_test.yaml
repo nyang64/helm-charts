@@ -1,0 +1,139 @@
+suite: "security -- xpack settings, ELASTIC_PASSWORD env, TLS config"
+values:
+  - values/base.yaml
+
+tests:
+
+  # ── ELASTIC_PASSWORD env var ───────────────────────────────────────────────
+
+  - it: "master pods have ELASTIC_PASSWORD env when security.enabled=true"
+    template: templates/master-statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ELASTIC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: es-elastic-secret
+                key: ELASTIC_PASSWORD
+
+  - it: "data pods have ELASTIC_PASSWORD env when security.enabled=true"
+    template: templates/data-statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ELASTIC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: es-elastic-secret
+                key: ELASTIC_PASSWORD
+
+  - it: "ELASTIC_PASSWORD env is absent when security.enabled=false"
+    template: templates/data-statefulset.yaml
+    set:
+      security.enabled: false
+      tls.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ELASTIC_PASSWORD
+          any: true
+
+  - it: "ELASTIC_PASSWORD env uses bootstrap secret name when no existingSecret"
+    template: templates/data-statefulset.yaml
+    set:
+      elasticPassword.existingSecret: ""
+      elasticPassword.password: "strongpassword123"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ELASTIC_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: es-test-bootstrap
+                key: ELASTIC_PASSWORD
+
+  # ── elasticsearch.yml xpack settings ──────────────────────────────────────
+
+  - it: "elasticsearch.yml contains xpack.security.enabled: true when enabled"
+    template: templates/elasticsearch-config.yaml
+    asserts:
+      - matchRegex:
+          path: 'data["elasticsearch.yml"]'
+          pattern: "xpack\\.security\\.enabled: true"
+
+  - it: "elasticsearch.yml contains xpack.security.enabled: false when disabled"
+    template: templates/elasticsearch-config.yaml
+    set:
+      security.enabled: false
+      tls.enabled: false
+    asserts:
+      - matchRegex:
+          path: 'data["elasticsearch.yml"]'
+          pattern: "xpack\\.security\\.enabled: false"
+
+  - it: "elasticsearch.yml has HTTP SSL when tls.enabled=true and istio disabled"
+    template: templates/elasticsearch-config.yaml
+    asserts:
+      - matchRegex:
+          path: 'data["elasticsearch.yml"]'
+          pattern: "xpack\\.security\\.http\\.ssl\\.enabled: true"
+
+  - it: "elasticsearch.yml has no HTTP SSL when istio.enabled=true (Envoy handles TLS)"
+    template: templates/elasticsearch-config.yaml
+    set:
+      istio.enabled: true
+      istio.gateway.tls.credentialName: "es-gateway-tls"
+    asserts:
+      - notMatchRegex:
+          path: 'data["elasticsearch.yml"]'
+          pattern: "xpack\\.security\\.http\\.ssl\\.enabled"
+
+  - it: "elasticsearch.yml always has transport SSL when tls.enabled=true"
+    template: templates/elasticsearch-config.yaml
+    asserts:
+      - matchRegex:
+          path: 'data["elasticsearch.yml"]'
+          pattern: "xpack\\.security\\.transport\\.ssl\\.enabled: true"
+
+  # ── TLS volume mounts ──────────────────────────────────────────────────────
+
+  - it: "data pods mount TLS certs when tls.enabled=true"
+    template: templates/data-statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls-certs
+            mountPath: /usr/share/elasticsearch/config/certs
+            readOnly: true
+
+  - it: "data pods do not mount TLS certs when tls.enabled=false"
+    template: templates/data-statefulset.yaml
+    set:
+      security.enabled: false
+      tls.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tls-certs
+          any: true
+
+  # ── checksum annotations ───────────────────────────────────────────────────
+
+  - it: "master pods carry config checksum annotation (restart on ConfigMap change)"
+    template: templates/master-statefulset.yaml
+    asserts:
+      - isNotNullOrEmpty:
+          path: spec.template.metadata.annotations["checksum/config"]
+
+  - it: "data pods carry config checksum annotation"
+    template: templates/data-statefulset.yaml
+    asserts:
+      - isNotNullOrEmpty:
+          path: spec.template.metadata.annotations["checksum/config"]
