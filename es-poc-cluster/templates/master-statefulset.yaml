@@ -30,6 +30,7 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/elasticsearch-config.yaml") . | sha256sum }}
         checksum/roles: {{ include (print $.Template.BasePath "/es-roles-configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/bootstrap-secret.yaml") . | sha256sum }}
+        checksum/jvm-options: {{ include (print $.Template.BasePath "/jvm-options-configmap.yaml") . | sha256sum }}
         {{- if .Values.istio.enabled }}
         sidecar.istio.io/inject: "true"
         traffic.sidecar.istio.io/excludeInboundPorts: "9300"
@@ -76,8 +77,6 @@ spec:
           env:
             - name: node.roles
               value: "master"
-            - name: ES_JAVA_OPTS
-              value: "-Xms{{ .Values.master.heapSize }} -Xmx{{ .Values.master.heapSize }}"
             - name: discovery.seed_hosts
               value: {{ include "es-poc-cluster.fullname" . }}-master-headless
             {{- if not .Values.master.bootstrapped }}
@@ -142,6 +141,10 @@ spec:
               readOnly: true
             {{- end }}
             {{- include "es-poc-cluster.keystoreVolumeMount" . | nindent 12 }}
+            - name: jvm-options
+              mountPath: /usr/share/elasticsearch/config/jvm.options.d/heap.options
+              subPath: heap.options
+              readOnly: true
       volumes:
         - name: es-config
           configMap:
@@ -149,6 +152,12 @@ spec:
         - name: es-roles
           configMap:
             name: {{ include "es-poc-cluster.fullname" . }}-roles
+        - name: jvm-options
+          configMap:
+            name: {{ include "es-poc-cluster.fullname" . }}-jvm-options
+            items:
+              - key: master-heap.options
+                path: heap.options
         {{- if .Values.tls.enabled }}
         - name: tls-certs
           secret:

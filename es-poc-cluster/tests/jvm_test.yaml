@@ -1,0 +1,120 @@
+suite: "jvm -- heap options ConfigMap, volume mounts, no ES_JAVA_OPTS"
+values:
+  - values/base.yaml
+
+tests:
+
+  # ── JVM ConfigMap rendering ────────────────────────────────────────────────
+
+  - it: "JVM options ConfigMap is rendered"
+    template: templates/jvm-options-configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: es-test-jvm-options
+
+  - it: "JVM ConfigMap master-heap.options key contains correct Xms/Xmx"
+    template: templates/jvm-options-configmap.yaml
+    set:
+      master.heapSize: "1g"
+    asserts:
+      - matchRegex:
+          path: 'data["master-heap.options"]'
+          pattern: "-Xms1g"
+      - matchRegex:
+          path: 'data["master-heap.options"]'
+          pattern: "-Xmx1g"
+
+  - it: "JVM ConfigMap data-heap.options key contains correct Xms/Xmx"
+    template: templates/jvm-options-configmap.yaml
+    set:
+      data.heapSize: "4g"
+    asserts:
+      - matchRegex:
+          path: 'data["data-heap.options"]'
+          pattern: "-Xms4g"
+      - matchRegex:
+          path: 'data["data-heap.options"]'
+          pattern: "-Xmx4g"
+
+  # ── checksum annotation forces rolling restart ─────────────────────────────
+
+  - it: "master pods carry jvm-options checksum annotation"
+    template: templates/master-statefulset.yaml
+    asserts:
+      - isNotNullOrEmpty:
+          path: spec.template.metadata.annotations["checksum/jvm-options"]
+
+  - it: "data pods carry jvm-options checksum annotation"
+    template: templates/data-statefulset.yaml
+    asserts:
+      - isNotNullOrEmpty:
+          path: spec.template.metadata.annotations["checksum/jvm-options"]
+
+  # ── ES_JAVA_OPTS absent ────────────────────────────────────────────────────
+
+  - it: "ES_JAVA_OPTS env var is absent from master pods"
+    template: templates/master-statefulset.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ES_JAVA_OPTS
+          any: true
+
+  - it: "ES_JAVA_OPTS env var is absent from data pods"
+    template: templates/data-statefulset.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ES_JAVA_OPTS
+          any: true
+
+  # ── jvm-options volume mounts ──────────────────────────────────────────────
+
+  - it: "master pods mount jvm-options into jvm.options.d/heap.options"
+    template: templates/master-statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: jvm-options
+            mountPath: /usr/share/elasticsearch/config/jvm.options.d/heap.options
+            subPath: heap.options
+            readOnly: true
+
+  - it: "data pods mount jvm-options into jvm.options.d/heap.options"
+    template: templates/data-statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: jvm-options
+            mountPath: /usr/share/elasticsearch/config/jvm.options.d/heap.options
+            subPath: heap.options
+            readOnly: true
+
+  # ── jvm-options volume source ──────────────────────────────────────────────
+
+  - it: "master pod jvm-options volume uses master-heap.options key"
+    template: templates/master-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[?(@.name=="jvm-options")].configMap.items[0].key
+          value: master-heap.options
+      - equal:
+          path: spec.template.spec.volumes[?(@.name=="jvm-options")].configMap.items[0].path
+          value: heap.options
+
+  - it: "data pod jvm-options volume uses data-heap.options key"
+    template: templates/data-statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes[?(@.name=="jvm-options")].configMap.items[0].key
+          value: data-heap.options
+      - equal:
+          path: spec.template.spec.volumes[?(@.name=="jvm-options")].configMap.items[0].path
+          value: heap.options

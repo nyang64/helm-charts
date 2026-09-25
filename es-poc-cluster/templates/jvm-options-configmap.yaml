@@ -1,0 +1,26 @@
+{{/*
+JVM heap configuration for Elasticsearch nodes.
+
+ES 9.x: ES_JAVA_OPTS is still accepted but explicitly discouraged for production
+(https://www.elastic.co/docs/reference/elasticsearch/jvm-settings). Mounting a
+.options file into jvm.options.d/ is the production-recommended approach and
+avoids the "overrides ALL other JVM options" footgun of ES_JAVA_OPTS.
+
+Heap rules:
+  - Set Xms == Xmx to avoid heap resizing at runtime (ES recommendation).
+  - Cap at 31 GB to stay below the JVM compressed-oops threshold.
+  - Leave at least as much RAM for the OS page cache as the heap itself.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "es-poc-cluster.fullname" . }}-jvm-options
+  labels:
+    {{- include "es-poc-cluster.labels" . | nindent 4 }}
+data:
+  master-heap.options: |
+    -Xms{{ .Values.master.heapSize }}
+    -Xmx{{ .Values.master.heapSize }}
+  data-heap.options: |
+    -Xms{{ .Values.data.heapSize }}
+    -Xmx{{ .Values.data.heapSize }}
