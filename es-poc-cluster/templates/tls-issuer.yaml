@@ -20,6 +20,8 @@ spec:
   isCA: true
   commonName: {{ include "aimlp-search.fullname" . }}-ca
   secretName: {{ include "aimlp-search.tlsIssuerName" . }}-ca
+  duration: "17520h"    # 2 years — must exceed leaf cert duration (default 8760h/1yr) to avoid expiry before leaves
+  renewBefore: "1440h"  # begin CA renewal 60 days before expiry
   issuerRef:
     name: {{ include "aimlp-search.tlsIssuerName" . }}-bootstrap
     kind: Issuer

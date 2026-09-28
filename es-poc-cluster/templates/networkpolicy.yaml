@@ -44,9 +44,11 @@ spec:
         - port: 53
           protocol: TCP
     {{- if and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") }}
-    # S3 snapshot endpoint egress -- port matches configured protocol.
+    {{- $defaultS3Port := ternary 443 80 (eq .Values.snapshot.repository.s3.protocol "https") }}
+    {{- $s3Port := int .Values.snapshot.repository.s3.port }}
+    {{- if eq $s3Port 0 }}{{- $s3Port = $defaultS3Port }}{{- end }}
     - ports:
-        - port: {{ if eq .Values.snapshot.repository.s3.protocol "https" }}443{{ else }}80{{ end }}
+        - port: {{ $s3Port }}
           protocol: TCP
     {{- end }}
     {{- if .Values.istio.enabled }}

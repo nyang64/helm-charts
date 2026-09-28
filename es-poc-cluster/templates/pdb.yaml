@@ -1,4 +1,7 @@
 {{- if .Values.pdb.master.enabled }}
+{{- $masterReplicas := int .Values.master.replicas }}
+{{- $quorumMin := add1 (div $masterReplicas 2) }}
+{{- $masterMinAvailable := max (int .Values.pdb.master.minAvailable) $quorumMin | min $masterReplicas }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -7,7 +10,7 @@ metadata:
   labels:
     {{- include "aimlp-search.labels" . | nindent 4 }}
 spec:
-  minAvailable: {{ min .Values.pdb.master.minAvailable (int .Values.master.replicas) }}
+  minAvailable: {{ $masterMinAvailable }}
   selector:
     matchLabels:
       {{- include "aimlp-search.selectorLabels" . | nindent 6 }}

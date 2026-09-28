@@ -1,6 +1,13 @@
 # Cluster-wide settings
 clusterName: aimlp-search
 
+# preflight: controls live cluster pre-install checks (helm install/upgrade only;
+# 'helm template' always skips these). Requires cluster-scoped RBAC to read
+# Namespaces and CustomResourceDefinitions. Set skip=true if the Helm installer
+# identity has only namespaced permissions.
+preflight:
+  skip: false
+
 image:
   repository: docker.elastic.co/elasticsearch/elasticsearch
   # tag: pin to an exact patch version in production. Mutable tags (e.g. "8.17") mean
@@ -194,6 +201,9 @@ snapshot:
       # protocol: prepended to endpoint to form the full S3 URL. "https" is strongly
       # recommended for on-prem S3. "http" only for isolated dev/test environments.
       protocol: "https"
+      # port: override the egress port in NetworkPolicy. Default 0 = auto (443 for https, 80 for http).
+      # Set explicitly when using a non-standard port, e.g. 9000 for MinIO or 9443 for HTTPS MinIO.
+      port: 0
       # credentialsSecret: K8s secret with on-prem S3 access credentials.
       # Secret must have keys: access_key, secret_key.
       # Create with:
@@ -250,7 +260,15 @@ kibana:
   # Required for version upgrades -- Kibana does not support two versions running
   # simultaneously. Use RollingUpdate only for same-version config-only rollouts where
   # brief pod overlap is safe (typically multi-replica deployments).
+  # CAUTION: RollingUpdate with antiAffinity=required requires a spare eligible node;
+  # without one the surge pod cannot schedule and the rollout deadlocks.
   updateStrategy: "Recreate"
+  rollingUpdate:
+    # Only used when updateStrategy=RollingUpdate.
+    # maxSurge=0/maxUnavailable=1: avoids surge scheduling issues with hard anti-affinity.
+    # maxSurge=1/maxUnavailable=0: zero-downtime but requires a spare node.
+    maxSurge: 1
+    maxUnavailable: 0
   antiAffinity: "preferred"
   resources:
     requests:

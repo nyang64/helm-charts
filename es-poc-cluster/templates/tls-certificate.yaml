@@ -25,6 +25,9 @@ spec:
     - {{ include "aimlp-search.fullname" . }}
     - {{ include "aimlp-search.fullname" . }}-master-headless
     - {{ include "aimlp-search.fullname" . }}-data-headless
+    - {{ include "aimlp-search.fullname" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "aimlp-search.fullname" . }}-master-headless.{{ .Release.Namespace }}.svc
+    - {{ include "aimlp-search.fullname" . }}-data-headless.{{ .Release.Namespace }}.svc
     - {{ include "aimlp-search.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
     - {{ include "aimlp-search.fullname" . }}-master-headless.{{ .Release.Namespace }}.svc.cluster.local
     - {{ include "aimlp-search.fullname" . }}-data-headless.{{ .Release.Namespace }}.svc.cluster.local

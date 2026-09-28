@@ -78,8 +78,19 @@ not at Elasticsearch startup time inside the cluster.
 {{- end }}
 {{- end }}
 
+{{/* OAuth token service requires native HTTP TLS; Istio mTLS does not satisfy ES's
+     TokenSSLBootstrapCheck (ES 9.4.5). Reject the combination explicitly. */}}
+{{- if and .Values.istio.enabled (index .Values.esConfig "xpack.security.authc.token.enabled") }}
+{{- fail "Invalid configuration: xpack.security.authc.token.enabled=true requires native HTTP TLS (xpack.security.http.ssl.enabled). Native HTTP TLS is disabled when istio.enabled=true (Envoy handles mTLS). Elasticsearch's TokenSSLBootstrapCheck will reject this combination at startup. Either disable the OAuth token service or set istio.enabled=false with tls.enabled=true." }}
+{{- end }}
+
 {{/* Lookup-based prereq checks -- these run against a real cluster during helm install/upgrade.
-     During 'helm template' (no cluster access), lookup returns {} and checks are skipped. */}}
+     During 'helm template' (no cluster access), lookup returns {} and checks are skipped.
+     Required installer RBAC: get Namespaces (cluster-scoped), get CustomResourceDefinitions
+     (cluster-scoped, when tls.enabled or istio.enabled), get/list Secrets in the release
+     namespace. Installers with namespaced-only permissions should set preflight.skip=true
+     to disable the cluster-scoped Namespace and CRD lookups (Secret checks are still done). */}}
+{{- if not .Values.preflight.skip }}
 {{- $clusterReachable := lookup "v1" "Namespace" "" .Release.Namespace }}
 {{- if $clusterReachable }}
   {{- if and .Values.security.enabled .Values.elasticPassword.existingSecret }}
@@ -111,4 +122,5 @@ not at Elasticsearch startup time inside the cluster.
       {{- end }}
     {{- end }}
   {{- end }}
+{{- end }}
 {{- end }}

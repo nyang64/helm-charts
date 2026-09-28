@@ -18,8 +18,8 @@ spec:
     type: {{ .Values.kibana.updateStrategy | default "Recreate" }}
     {{- if eq (.Values.kibana.updateStrategy | default "Recreate") "RollingUpdate" }}
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      maxSurge: {{ .Values.kibana.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.kibana.rollingUpdate.maxUnavailable }}
     {{- end }}
   selector:
     matchLabels:

@@ -14,7 +14,9 @@ data:
     {{- if and .Values.tls.enabled (not .Values.istio.enabled) }}
     # Kibana → ES: HTTPS with cert-manager CA. ES hosts and token come from env vars.
     elasticsearch.ssl.certificateAuthorities: ["/usr/share/kibana/config/certs/ca.crt"]
-    elasticsearch.ssl.verificationMode: certificate
+    # full: verifies both the certificate chain AND hostname.
+    # The certificate SANs now include the .svc form used by ELASTICSEARCH_HOSTS.
+    elasticsearch.ssl.verificationMode: full
     {{- end }}
     telemetry.optIn: false
     telemetry.enabled: false

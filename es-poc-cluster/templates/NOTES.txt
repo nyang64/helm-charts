@@ -43,6 +43,16 @@ PRE-REQUISITE -- TLS secret for the Istio ingress gateway (platform team)
   EOF
 {{- end }}
 
+{{- if .Values.master.bootstrapped }}
+WARNING -- master.bootstrapped=true
+------------------------------------
+  cluster.initial_master_nodes is NOT set in this release.
+  This is correct when upgrading an existing cluster with retained data.
+  If this is a FIRST INSTALL (empty PVCs), master pods cannot elect a leader
+  and will never become Ready. Re-deploy with master.bootstrapped=false,
+  wait for cluster formation, then upgrade with master.bootstrapped=true.
+{{- end }}
+
 STEP 1 -- Wait for all pods to be ready
 --------------------------------------
   kubectl get pods -n {{ .Release.Namespace }} -w

@@ -275,10 +275,22 @@ spec:
 Also set `istio.gateway.hostname: es.<your-domain>` in your values so the chart's
 Istio AuthorizationPolicy Rule 4 allows the ingress gateway to reach ES port 9200.
 
-**Option 2: LoadBalancer service** (Istio or non-Istio; on-prem with MetalLB)
+**Option 2: LoadBalancer service** (non-Istio only; on-prem with MetalLB)
+
+> **WARNING — do NOT use a raw LoadBalancer with `istio.enabled=true`.**
+> When Istio is enabled, ES pods serve HTTP inside the mesh (Envoy handles
+> mTLS). A direct LoadBalancer IP exposes a plaintext HTTP endpoint with no
+> authentication bypass protection from outside the mesh. External clients
+> that lack Istio identity cannot connect successfully. Use the SIMPLE TLS
+> Istio gateway (Option 1 equivalent) for external access to Istio-mode ES.
+>
+> For Istio-mode ES, expose the cluster externally via the chart's Istio
+> Gateway (`istio.gateway.hostname` + `tls.mode: SIMPLE`) on port 443.
+> External Kibana should connect to `https://<istio-gateway-hostname>:443`.
 
 ```bash
 # Patch the ES client service to type LoadBalancer (apply in the ES cluster)
+# Only for non-Istio (tls.enabled=true, istio.enabled=false) deployments.
 kubectl patch svc ${RELEASE} -n ${ES_NAMESPACE} \
   -p '{"spec":{"type":"LoadBalancer"}}'
 
@@ -290,9 +302,11 @@ kubectl get svc ${RELEASE} -n ${ES_NAMESPACE} \
 After either option, record the ES endpoint that Kibana will use:
 
 ```bash
-# Istio Gateway (non-Istio ES, TLS terminated at gateway):
+# Istio Gateway with SIMPLE mode (istio.enabled=true): connect to the gateway on port 443
+ES_EXTERNAL_URL="https://<istio-gateway-hostname>:443"
+# Istio Gateway with PASSTHROUGH (istio.enabled=false, tls.enabled=true):
 ES_EXTERNAL_URL="https://es.<your-domain>:9200"
-# LoadBalancer (non-Istio ES, TLS at app layer; or Istio ES with LB):
+# LoadBalancer (non-Istio ES, TLS at app layer, tls.enabled=true, istio.enabled=false):
 ES_EXTERNAL_URL="https://<loadbalancer-ip>:9200"
 ```
 

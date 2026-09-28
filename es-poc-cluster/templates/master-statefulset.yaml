@@ -119,7 +119,7 @@ spec:
               command:
                 - sh
                 - -c
-                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }}{{ if .Values.security.enabled }} -u "elastic:${ELASTIC_PASSWORD}"{{ end }} "{{ include "aimlp-search.httpScheme" . }}://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"'
+                - 'curl -sf{{ if and .Values.tls.enabled (not .Values.istio.enabled) }} -k{{ end }}{{ if .Values.security.enabled }} -u "elastic:${ELASTIC_PASSWORD}"{{ end }} "{{ include "aimlp-search.httpScheme" . }}://localhost:9200/_cluster/health?local=true"'
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
