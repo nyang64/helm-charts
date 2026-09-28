@@ -46,10 +46,10 @@ master:
   heapSize: "4g"         # ~1 GB per 3000 shards; 4 GB handles large index counts comfortably
   antiAffinity: "required"   # hard rule: no two master pods on the same node
   # bootstrapped controls whether cluster.initial_master_nodes is emitted.
-  # FIRST INSTALL: set bootstrapped=false (or remove this key) so ES can elect the initial master.
-  # After the cluster is healthy, upgrade with bootstrapped=true to prevent accidental re-bootstrap.
-  # Leaving bootstrapped=true on a fresh install with empty PVCs will prevent cluster formation.
-  bootstrapped: true         # cluster already formed; removes cluster.initial_master_nodes
+  # false (default): safe for both fresh installs AND existing clusters — ES ignores the setting
+  #   once cluster state is persisted, so there is no harm leaving it in place after formation.
+  # true: suppresses the setting as a cleanup measure after first formation. Optional.
+  bootstrapped: false
   resources:
     requests:
       cpu: "500m"        # cluster state diffs and election are low-CPU; reserve burst headroom
