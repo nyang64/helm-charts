@@ -18,9 +18,18 @@
         "pullPolicy": {
           "type": "string",
           "enum": ["Always", "IfNotPresent", "Never"]
+        },
+        "pullSecrets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": { "name": { "type": "string" } }
+          }
         }
       }
     },
+    "busyboxImage": { "type": "string" },
     "security": {
       "type": "object",
       "properties": {

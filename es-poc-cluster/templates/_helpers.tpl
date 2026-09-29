@@ -194,6 +194,16 @@ inode. The pre-built keystore already contains bootstrap.password so ES starts c
 {{- end }}
 
 {{/*
+imagePullSecrets block -- renders only when image.pullSecrets is non-empty.
+*/}}
+{{- define "aimlp-search.imagePullSecrets" -}}
+{{- with .Values.image.pullSecrets }}
+imagePullSecrets:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+
+{{/*
 Keystore emptyDir volume -- shared between keystoreInitContainer and the main ES container.
 */}}
 {{- define "aimlp-search.keystoreVolume" -}}

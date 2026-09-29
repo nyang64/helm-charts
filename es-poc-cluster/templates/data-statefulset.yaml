@@ -41,11 +41,12 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       {{- include "aimlp-search.antiAffinity" (list . "data" .Values.data.antiAffinity) | nindent 6 }}
+      {{- include "aimlp-search.imagePullSecrets" . | nindent 6 }}
       {{- if or .Values.sysctl.enabled (and .Values.snapshot.enabled (eq .Values.snapshot.repository.type "s3") .Values.snapshot.repository.s3.credentialsSecret) }}
       initContainers:
         {{- if .Values.sysctl.enabled }}
         - name: sysctl
-          image: busybox:1.36.1
+          image: {{ .Values.busyboxImage | quote }}
           securityContext:
             privileged: true
             runAsUser: 0

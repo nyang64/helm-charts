@@ -48,6 +48,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       {{- include "aimlp-search.antiAffinity" (list . "kibana" .Values.kibana.antiAffinity) | nindent 6 }}
+      {{- include "aimlp-search.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: kibana
           image: "{{ .Values.kibana.image.repository }}:{{ $kibanaTag }}"

@@ -15,6 +15,14 @@ image:
   # potentially causing a rolling upgrade without operator awareness.
   tag: "9.4.5"
   pullPolicy: IfNotPresent
+  # pullSecrets: list of imagePullSecret names for private registries.
+  # Required when pulling from ECR, GCR, Harbor, or any non-public registry.
+  # Example: [{name: my-registry-secret}]
+  pullSecrets:
+    - name: wfcr-pull-secret
+
+# busyboxImage: sysctl init container image. Override to a mirrored image in air-gapped clusters.
+busyboxImage: "busybox:1.36.1"
 
 nameOverride: ""
 fullnameOverride: ""
