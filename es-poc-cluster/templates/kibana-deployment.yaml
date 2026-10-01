@@ -33,7 +33,7 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/kibana-configmap.yaml") . | sha256sum }}
         {{- $tokenSecret := lookup "v1" "Secret" .Release.Namespace .Values.kibana.serviceAccountToken.existingSecret }}
-        checksum/token-secret: {{ $tokenSecret | toJson | sha256sum }}
+        checksum/token-secret: {{ dig "data" "token" "" $tokenSecret | sha256sum }}
         {{- if .Values.istio.enabled }}
         sidecar.istio.io/inject: "true"
         {{- end }}
