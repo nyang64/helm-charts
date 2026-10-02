@@ -17,6 +17,7 @@ data:
     es_data_user:
       cluster:
         - monitor
+        - manage_own_api_key
       indices:
         - names: ["*"]
           privileges:
